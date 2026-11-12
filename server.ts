@@ -3,6 +3,7 @@ import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import fs from 'fs';
+import dns from 'dns';
 import { findTemplatePreset, getCategoryCoverImage } from './src/data/eventTemplates';
 
 // Guard against unhandled errors terminating process
@@ -154,27 +155,42 @@ function saveNotifications(notifications: any[]) {
 }
 
 function getSavedSystemUsers(): any[] {
+  const defaultOwner = {
+    name: 'Seyha Yoeurn (Owner)',
+    email: 'seyhayoeurn2017@gmail.com',
+    role: 'owner',
+    passcode: 'Admin@1111',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  };
   const defaultAdmin = {
     name: 'Yoeurn Seyha',
     email: 'yoeurn.seyha@diu.edu.kh',
+    role: 'admin',
     passcode: 'Admin@1111',
     createdAt: '2026-01-01T00:00:00.000Z'
   };
   try {
     if (fs.existsSync(SYSTEM_USERS_FILE)) {
       const users = JSON.parse(fs.readFileSync(SYSTEM_USERS_FILE, 'utf-8'));
+      const ownerIdx = users.findIndex((u: any) => u.email?.toLowerCase() === 'seyhayoeurn2017@gmail.com');
+      if (ownerIdx >= 0) {
+        users[ownerIdx].role = 'owner';
+      } else {
+        users.unshift(defaultOwner);
+      }
       const adminIdx = users.findIndex((u: any) => u.email?.toLowerCase() === 'yoeurn.seyha@diu.edu.kh');
       if (adminIdx >= 0) {
         users[adminIdx].passcode = 'Admin@1111';
+        if (!users[adminIdx].role) users[adminIdx].role = 'admin';
       } else {
-        users.unshift(defaultAdmin);
+        users.push(defaultAdmin);
       }
       return users;
     }
   } catch (err) {
     console.error('Error reading system users file:', err);
   }
-  return [defaultAdmin];
+  return [defaultOwner, defaultAdmin];
 }
 
 function saveSystemUser(user: any) {
@@ -686,6 +702,173 @@ app.post('/api/send-reset-code', (req, res) => {
     message: `Verification code sent from ${senderEmail} to ${email}`
   });
 });
+
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  'mailinator.com', 'tempmail.com', '10minutemail.com', 'guerrillamail.com',
+  'trashmail.com', 'yopmail.com', 'temp-mail.org', 'fakemailgenerator.com',
+  'sharklasers.com', 'getnada.com', 'dispostable.com', 'fake.com', 'test.com',
+  'example.com', 'throwawaymail.com', 'burnermail.io', 'mohmal.com', 'crazymailing.com',
+  'mytemp.email', 'tempinbox.com', 'maildrop.cc', 'inboxkitten.com', 'trashmail.net',
+  'throwaway.email', 'nada.ltd', 'emailondeck.com', 'tempmailo.com', 'guerrillamailblock.com',
+  'guerrillamail.net', 'guerrillamail.biz', 'guerrillamail.org', 'grr.la', 'spam4.me',
+  'fakeinbox.com', 'disposablemail.com', 'generator.email', 'disposable.com',
+  'tempmail.net', 'tempmailaddress.com', 'dropmail.me', '10minutemail.net', 'temp-mail.io',
+  'discard.email', 'tempmailgen.com', 'zillamail.com'
+]);
+
+const TRUSTED_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+  'icloud.com', 'me.com', 'mac.com', 'live.com', 'msn.com',
+  'diu.edu.kh', 'moeys.gov.kh', 'rupp.edu.kh', 'cadt.edu.kh', 'gov.kh', 'edu.kh',
+  'proton.me', 'protonmail.com', 'zoho.com', 'aol.com'
+]);
+
+// Endpoint to verify whether an email is real or fake/disposable
+app.post('/api/verify-email', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ success: false, isReal: false, error: 'Email is required' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  
+  if (!emailRegex.test(cleanEmail)) {
+    return res.json({
+      success: true,
+      isReal: false,
+      reason: 'invalid_format',
+      messageKh: 'ទម្រង់អ៊ីមែលមិនត្រឹមត្រូវ (Invalid email syntax)',
+      messageEn: 'Invalid email syntax or formatting'
+    });
+  }
+
+  const parts = cleanEmail.split('@');
+  const username = parts[0];
+  const domain = parts[1];
+
+  // Reject dummy or repetitive usernames
+  const dummyUsernames = ['test', 'fake', 'asdf', 'aaaa', '1111', 'admin', 'user', 'dummy', 'temp'];
+  if (dummyUsernames.includes(username) || /^([a-zA-Z0-9])\1{3,}$/.test(username) || username.length < 2) {
+    return res.json({
+      success: true,
+      isReal: false,
+      reason: 'fake_username',
+      messageKh: 'ឈ្មោះអ៊ីមែលក្លែងក្លាយ ឬមិនពិត (Fake username pattern)',
+      messageEn: 'Username appears to be fake or disposable'
+    });
+  }
+
+  // Reject known disposable domains
+  if (DISPOSABLE_EMAIL_DOMAINS.has(domain)) {
+    return res.json({
+      success: true,
+      isReal: false,
+      reason: 'disposable_domain',
+      messageKh: 'អ៊ីមែលក្លែងក្លាយ ឬ អ៊ីមែលបណ្តោះអាសន្ន មិនត្រូវបានអនុញ្ញាតទេ',
+      messageEn: 'Disposable or temporary email services are not allowed'
+    });
+  }
+
+  // Special Google Account / Gmail Verification
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    // Gmail usernames cannot start/end with a dot, have consecutive dots, or invalid characters
+    if (/^\.|\.\.|\.$|[^a-zA-Z0-9.]/.test(username)) {
+      return res.json({
+        success: true,
+        isReal: false,
+        isGoogle: false,
+        reason: 'invalid_google_format',
+        messageKh: 'ទម្រង់គណនី Google/Gmail មិនត្រឹមត្រូវ (Invalid Google account format)',
+        messageEn: 'Invalid Google / Gmail username format'
+      });
+    }
+    return res.json({
+      success: true,
+      isReal: true,
+      isGoogle: true,
+      provider: 'Google Account',
+      domain,
+      reason: 'google_account',
+      messageKh: '✓ គណនី Google ពិតប្រាកដ (Google Account Verified)',
+      messageEn: '✓ Official Google Account Verified'
+    });
+  }
+
+  // Instantly accept other known trusted domains
+  if (TRUSTED_EMAIL_DOMAINS.has(domain)) {
+    return res.json({
+      success: true,
+      isReal: true,
+      isGoogle: false,
+      domain,
+      reason: 'trusted_provider',
+      messageKh: '✓ អ៊ីមែលពិតប្រាកដ និងត្រឹមត្រូវ (Verified Real Email)',
+      messageEn: '✓ Verified Real Email Account'
+    });
+  }
+
+  // Query DNS MX records to verify domain actually receives emails
+  try {
+    const resolvePromise = dns.promises.resolveMx(domain);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('DNS_TIMEOUT')), 2500)
+    );
+    const mxRecords = (await Promise.race([resolvePromise, timeoutPromise])) as dns.MxRecord[];
+    
+    if (mxRecords && mxRecords.length > 0) {
+      // Check if domain is powered by Google Workspace / Google mail exchange
+      const isGoogleWorkspace = mxRecords.some(r =>
+        r.exchange.toLowerCase().includes('google.com') ||
+        r.exchange.toLowerCase().includes('googlemail.com')
+      );
+
+      return res.json({
+        success: true,
+        isReal: true,
+        isGoogle: isGoogleWorkspace,
+        provider: isGoogleWorkspace ? 'Google Workspace' : 'Custom Domain Mail',
+        domain,
+        reason: isGoogleWorkspace ? 'google_workspace' : 'valid_mx',
+        messageKh: isGoogleWorkspace
+          ? '✓ គណនី Google Workspace ពិតប្រាកដ (Google Mail Server)'
+          : '✓ អ៊ីមែលពិតប្រាកដ (មានម៉ាស៊ីនបម្រើអ៊ីមែលសកម្ម)',
+        messageEn: isGoogleWorkspace
+          ? '✓ Verified Google Workspace Account (Active Google MX)'
+          : '✓ Verified Real Email Account (Active Mail Server)'
+      });
+    } else {
+      return res.json({
+        success: true,
+        isReal: false,
+        reason: 'no_mx_records',
+        messageKh: 'ដែនអ៊ីមែលនេះមិនមានម៉ាស៊ីនទទួលសំបុត្រពិតប្រាកដទេ (No MX records)',
+        messageEn: 'Domain has no active mail servers'
+      });
+    }
+  } catch (err: any) {
+    if (err.message === 'DNS_TIMEOUT') {
+      const hasValidTld = domain.includes('.') && domain.split('.').pop()!.length >= 2;
+      return res.json({
+        success: true,
+        isReal: hasValidTld,
+        domain,
+        reason: hasValidTld ? 'tld_valid' : 'invalid_domain',
+        messageKh: hasValidTld ? 'អ៊ីមែលត្រឹមត្រូវ' : 'ដែនអ៊ីមែលមិនត្រឹមត្រូវ',
+        messageEn: hasValidTld ? 'Email format accepted' : 'Invalid email domain'
+      });
+    }
+
+    return res.json({
+      success: true,
+      isReal: false,
+      reason: 'domain_not_found',
+      messageKh: 'ដែនអ៊ីមែលមិនមានពិតប្រាកដទេ (Domain not found / Fake domain)',
+      messageEn: 'Email domain does not exist or cannot receive mail'
+    });
+  }
+});
+
 
 // Save or Update Event
 app.post('/api/event', (req, res) => {

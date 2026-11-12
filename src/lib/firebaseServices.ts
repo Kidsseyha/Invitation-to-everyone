@@ -301,7 +301,7 @@ export async function syncUserProfile(
     displayName: user.displayName || '',
     photoURL: user.photoURL || '',
     activeEventId: activeEventId || `event_${user.uid}`,
-    role: user.email === 'yoeurn.seyha@diu.edu.kh' ? 'admin' : 'editor',
+    role: user.email?.toLowerCase() === 'seyhayoeurn2017@gmail.com' ? 'owner' : (user.email === 'yoeurn.seyha@diu.edu.kh' ? 'admin' : 'editor'),
     lastLoginAt: new Date().toISOString(),
   };
 
@@ -566,7 +566,7 @@ export async function fetchSystemUsersFromFirebase(): Promise<any[]> {
               name: data.displayName || data.email?.split('@')[0] || 'Google User',
               email: data.email || '',
               passcode: 'Google Auth (Verified)',
-              role: data.role || (data.email === 'yoeurn.seyha@diu.edu.kh' ? 'admin' : 'editor'),
+              role: data.role || (data.email?.toLowerCase() === 'seyhayoeurn2017@gmail.com' ? 'owner' : (data.email === 'yoeurn.seyha@diu.edu.kh' ? 'admin' : 'editor')),
               createdAt: data.lastLoginAt || new Date().toISOString(),
             });
           });

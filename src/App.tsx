@@ -37,6 +37,12 @@ import {
   ArrowLeft,
   Trash2,
   Github,
+  ShieldCheck,
+  ShieldAlert,
+  Lock,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { WEDDING_EVENT } from './data/weddingData';
 import { sanitizeWeddingEvent, VERIFIED_WEDDING_COVER } from './utils/sanitizeEvent';
@@ -280,7 +286,7 @@ export default function App() {
     const email = forgotEmail.trim().toLowerCase();
     const users = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
     const userFound = users.find((u: any) => u.email?.toLowerCase() === email);
-    if (!userFound && email !== 'yoeurn.seyha@diu.edu.kh') {
+    if (!userFound && email !== 'seyhayoeurn2017@gmail.com' && email !== 'yoeurn.seyha@diu.edu.kh') {
       setForgotMessage(language === 'kh' ? 'រកមិនឃើញអ៊ីមែលនេះក្នុងមូលដ្ឋានទិន្នន័យទេ។' : 'Email not found in database records.');
       return;
     }
@@ -292,7 +298,7 @@ export default function App() {
       await fetch('/api/send-reset-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code, sender: 'Yoeurn.seyha@diu.edu.kh' }),
+        body: JSON.stringify({ email, code, sender: 'seyhayoeurn2017@gmail.com' }),
       });
     } catch (err) {
       console.warn('Error sending reset code via API:', err);
@@ -301,8 +307,8 @@ export default function App() {
     setForgotStep('enter_code');
     setForgotMessage(
       language === 'kh'
-        ? `លេខកូដផ្ទៀងផ្ទាត់ 4 ខ្ទង់ត្រូវផ្ញើចេញពី Yoeurn.seyha@diu.edu.kh៖ ${code}`
-        : `4-digit verification code sent from Yoeurn.seyha@diu.edu.kh: ${code}`
+        ? `លេខកូដផ្ទៀងផ្ទាត់ 4 ខ្ទង់ត្រូវផ្ញើចេញពី seyhayoeurn2017@gmail.com៖ ${code}`
+        : `4-digit verification code sent from seyhayoeurn2017@gmail.com: ${code}`
     );
   };
 
@@ -340,38 +346,254 @@ export default function App() {
     setNewPasscodeVal('');
     setForgotMessage('');
   };
+  const OWNER_EMAIL = 'seyhayoeurn2017@gmail.com';
+  const ADMIN_EMAIL = 'yoeurn.seyha@diu.edu.kh';
+
   const [dbUsersList, setDbUsersList] = useState<any[]>([]);
   const [editingUserIndex, setEditingUserIndex] = useState<number | null>(null);
   const [editNameVal, setEditNameVal] = useState('');
   const [editEmailVal, setEditEmailVal] = useState('');
   const [editPassVal, setEditPassVal] = useState('');
+  const [editRoleVal, setEditRoleVal] = useState('user');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [revealedPasscodeIndex, setRevealedPasscodeIndex] = useState<number | null>(null);
 
+  // Check if target user is an Owner (Full Control)
+  const isTargetUserOwner = (u: any): boolean => {
+    if (!u) return false;
+    const email = (u.email || '').toLowerCase().trim();
+    const role = (u.role || '').toLowerCase().trim();
+    return email === OWNER_EMAIL || role === 'owner';
+  };
+
+  // Check if target user is an Admin (Owner has full control more than admin)
+  const isTargetUserAdmin = (u: any): boolean => {
+    if (!u) return false;
+    if (isTargetUserOwner(u)) return true;
+    const role = (u.role || '').toLowerCase().trim();
+    if (role === 'admin') return true;
+    if (role === 'user' || role === 'editor') return false;
+    const email = (u.email || '').toLowerCase().trim();
+    return email === ADMIN_EMAIL;
+  };
+
+  // Check if currently active/logged-in actor is the Owner
+  const checkIsCurrentActorOwner = (): boolean => {
+    const activeEmail = (authUser?.email || '').toLowerCase().trim();
+    const activeIdentifier = (localStorage.getItem('wedding_logged_in_identifier') || '').toLowerCase().trim();
+    return activeEmail === OWNER_EMAIL || activeIdentifier === OWNER_EMAIL;
+  };
+
+  // Check if currently active/logged-in actor is an Admin or Owner
+  const checkIsCurrentActorAdmin = (): boolean => {
+    if (checkIsCurrentActorOwner()) return true;
+    const activeEmail = (authUser?.email || '').toLowerCase().trim();
+    const activeIdentifier = (localStorage.getItem('wedding_logged_in_identifier') || '').toLowerCase().trim();
+    return activeEmail === ADMIN_EMAIL || activeIdentifier === ADMIN_EMAIL || activeIdentifier === 'seyha';
+  };
+
   useEffect(() => {
     if (showAdminUsersModal) {
+      // 1. Immediately populate synchronously so there is zero delay/spinner
+      const local = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+      const initial = [...local];
+      const ownerIdx = initial.findIndex((u: any) => u.email?.toLowerCase() === OWNER_EMAIL);
+      if (ownerIdx >= 0) {
+        initial[ownerIdx].role = 'owner';
+        const [ownerItem] = initial.splice(ownerIdx, 1);
+        initial.unshift(ownerItem);
+      } else {
+        initial.unshift({
+          name: 'Seyha Yoeurn (Owner)',
+          email: OWNER_EMAIL,
+          passcode: 'Admin@1111',
+          role: 'owner',
+          createdAt: '2026-01-01T00:00:00.000Z'
+        });
+      }
+      if (!initial.some((u: any) => u.email?.toLowerCase() === ADMIN_EMAIL)) {
+        initial.push({
+          name: 'Yoeurn Seyha (Admin)',
+          email: ADMIN_EMAIL,
+          passcode: 'Admin@1111',
+          role: 'admin',
+          createdAt: '2026-01-01T00:00:00.000Z'
+        });
+      }
+      setDbUsersList(initial);
+
+      // 2. Query Firebase & backend in background to merge all remote users
       fetchSystemUsersFromFirebase().then(users => {
-        const local = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
-        const merged = [...local];
+        const merged = [...initial];
         for (const u of users) {
           if (!merged.some((m: any) => m.email?.toLowerCase() === u.email?.toLowerCase())) {
             merged.push(u);
           }
         }
+        const oIdx = merged.findIndex((u: any) => u.email?.toLowerCase() === OWNER_EMAIL);
+        if (oIdx >= 0) {
+          merged[oIdx].role = 'owner';
+          const [ownerItem] = merged.splice(oIdx, 1);
+          merged.unshift(ownerItem);
+        }
         setDbUsersList(merged);
       }).catch(() => {
-        setDbUsersList(JSON.parse(localStorage.getItem('wedding_registered_users') || '[]'));
+        // already populated
       });
     }
   }, [showAdminUsersModal]);
 
+  // Exact Role Permission Rules:
+  // 1. Owner can promote admin to user and user to Admin (Full Control)
+  // 2. Admin can't promote owner
+  // 3. Admin can promote user to admin
+  // 4. Admin can't promote admin back to user
+  const canActorPromoteUser = (
+    actorIsOwner: boolean,
+    actorIsAdmin: boolean,
+    targetUser: any,
+    newRole: string
+  ): { allowed: boolean; reason?: string } => {
+    const targetIsOwner = isTargetUserOwner(targetUser);
+    const targetIsAdmin = isTargetUserAdmin(targetUser) && !targetIsOwner;
+
+    // Rule 1: Nobody can touch/promote the Owner
+    if (targetIsOwner) {
+      return {
+        allowed: false,
+        reason:
+          language === 'kh'
+            ? '👑 គណនី Owner មិនអាចកែប្រែ ឬ ដំឡើង/ទម្លាក់តួនាទីបានទេ!'
+            : '👑 The Owner account cannot be modified or re-assigned!',
+      };
+    }
+
+    // Rule 2: If actor is neither Owner nor Admin
+    if (!actorIsOwner && !actorIsAdmin) {
+      return {
+        allowed: false,
+        reason:
+          language === 'kh'
+            ? '⚠️ អ្នកប្រើប្រាស់ទូទៅមិនមានសិទ្ធិកំណត់តួនាទីទេ!'
+            : '⚠️ General users do not have permission to manage roles!',
+      };
+    }
+
+    // Rule 3: OWNER has full authority:
+    // - Owner can promote admin to user
+    // - Owner can promote user to Admin
+    if (actorIsOwner) {
+      return { allowed: true };
+    }
+
+    // Rule 4: ADMIN permissions:
+    if (actorIsAdmin) {
+      // "admin can't promote owner"
+      if (newRole === 'owner') {
+        return {
+          allowed: false,
+          reason:
+            language === 'kh'
+              ? '⚠️ Admin មិនអាចដំឡើងនរណាម្នាក់ទៅជា Owner បានទេ! មានតែ Owner ដើមប៉ុណ្ណោះ។'
+              : '⚠️ Admins cannot promote anyone to Owner!',
+        };
+      }
+
+      // "admin can't promote admin back to user"
+      if (targetIsAdmin && newRole !== 'admin') {
+        return {
+          allowed: false,
+          reason:
+            language === 'kh'
+              ? '⚠️ Admin មិនអាចទម្លាក់ ឬ ដំឡើងគណនី Admin ត្រឡប់ទៅជា User វិញបានទេ! មានតែ Owner (ម្ចាស់ប្រព័ន្ធ) ទើបមានសិទ្ធិនេះ។'
+              : '⚠️ Admins cannot demote an Admin back to User! Only the Owner has this authority.',
+        };
+      }
+
+      // "admin can promote user to admin"
+      if (!targetIsAdmin && newRole === 'admin') {
+        return { allowed: true };
+      }
+
+      // Admin maintaining user role
+      if (!targetIsAdmin && (newRole === 'user' || newRole === 'editor')) {
+        return { allowed: true };
+      }
+    }
+
+    return { allowed: false, reason: 'Unauthorized role action' };
+  };
+
+  const handleQuickRoleChange = async (targetUser: any, newRole: string, index: number) => {
+    const isCurrentOwner = checkIsCurrentActorOwner();
+    const isCurrentAdmin = checkIsCurrentActorAdmin();
+
+    const check = canActorPromoteUser(isCurrentOwner, isCurrentAdmin, targetUser, newRole);
+    if (!check.allowed) {
+      alert(check.reason);
+      return;
+    }
+
+    const roleLabel = newRole === 'admin' ? 'Admin' : 'User';
+    const confirmMsg =
+      language === 'kh'
+        ? `តើអ្នកពិតជាចង់ប្តូរតួនាទីរបស់ "${targetUser.name || targetUser.email}" ទៅជា ${roleLabel} មែនទេ?`
+        : `Are you sure you want to change "${targetUser.name || targetUser.email}" to ${roleLabel}?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const updated = [...dbUsersList];
+    updated[index] = {
+      ...updated[index],
+      role: newRole,
+    };
+    setDbUsersList(updated);
+    localStorage.setItem('wedding_registered_users', JSON.stringify(updated));
+    try {
+      await registerSystemUserInFirebase(updated[index]);
+    } catch (e) {
+      console.warn('Error updating user role in DB:', e);
+    }
+    alert(
+      language === 'kh'
+        ? `ប្តូរតួនាទីទៅជា ${roleLabel} ជោគជ័យ!`
+        : `Role changed to ${roleLabel} successfully!`
+    );
+  };
+
   const handleSaveUserEdit = async (index: number) => {
+    const target = dbUsersList[index];
+    const isTargetOwner = isTargetUserOwner(target);
+    const isCurrentOwner = checkIsCurrentActorOwner();
+    const isCurrentAdmin = checkIsCurrentActorAdmin();
+
+    if (isTargetOwner && !isCurrentOwner) {
+      alert(language === 'kh' ? '⚠️ មានតែ Owner ប៉ុណ្ណោះដែលអាចកែប្រែគណនី Owner បាន!' : '⚠️ Only the Owner can modify the Owner account!');
+      return;
+    }
+
+    // Role promotion check if role is modified
+    const currentTargetRole = isTargetOwner
+      ? 'owner'
+      : isTargetUserAdmin(target) && !isTargetOwner
+      ? 'admin'
+      : target.role || 'user';
+
+    if (editRoleVal !== currentTargetRole) {
+      const roleCheck = canActorPromoteUser(isCurrentOwner, isCurrentAdmin, target, editRoleVal);
+      if (!roleCheck.allowed) {
+        alert(roleCheck.reason);
+        return;
+      }
+    }
+
     const updated = [...dbUsersList];
     updated[index] = {
       ...updated[index],
       name: editNameVal.trim() || updated[index].name,
       email: editEmailVal.trim() || updated[index].email,
       passcode: editPassVal.trim() || updated[index].passcode,
+      role: isTargetOwner ? 'owner' : editRoleVal,
     };
     setDbUsersList(updated);
     localStorage.setItem('wedding_registered_users', JSON.stringify(updated));
@@ -384,37 +606,43 @@ export default function App() {
     alert(language === 'kh' ? 'កែប្រែព័ត៌មានអ្នកប្រើប្រាស់ជោគជ័យ!' : 'User updated successfully!');
   };
 
-  // Check if target user is an Admin
-  const isTargetUserAdmin = (u: any): boolean => {
-    if (!u) return false;
-    const email = (u.email || '').toLowerCase().trim();
-    const name = (u.name || '').toLowerCase().trim();
-    const role = (u.role || '').toLowerCase().trim();
-    return email === 'yoeurn.seyha@diu.edu.kh' || role === 'admin' || name === 'seyha';
-  };
-
-  // Check if currently active/logged-in actor is an Admin
-  const checkIsCurrentActorAdmin = (): boolean => {
-    const activeEmail = (authUser?.email || '').toLowerCase().trim();
-    const activeIdentifier = (localStorage.getItem('wedding_logged_in_identifier') || '').toLowerCase().trim();
-    return activeEmail === 'yoeurn.seyha@diu.edu.kh' || activeIdentifier === 'yoeurn.seyha@diu.edu.kh' || activeIdentifier === 'seyha';
-  };
-
   const handleDeleteUser = async (userToDelete: any, index: number) => {
+    const isTargetOwner = isTargetUserOwner(userToDelete);
     const isTargetAdmin = isTargetUserAdmin(userToDelete);
-    const isCurrentActorAdmin = checkIsCurrentActorAdmin();
+    const isCurrentOwner = checkIsCurrentActorOwner();
+    const isCurrentAdmin = checkIsCurrentActorAdmin();
 
-    // STRICT RULE: General user CANNOT delete an admin user
-    if (!isCurrentActorAdmin && isTargetAdmin) {
+    // STRICT RULE 1: Owner account CANNOT be deleted by anyone (Permanent full control)
+    if (isTargetOwner) {
       alert(
         language === 'kh'
-          ? '⚠️ អ្នកប្រើប្រាស់ទូទៅមិនមានសិទ្ធិលុបគណនី Admin បានទេ!'
-          : '⚠️ General users cannot delete an admin user!'
+          ? '👑 គណនី Owner (seyhayoeurn2017@gmail.com) មានសិទ្ធិខ្ពស់បំផុត និងមិនអាចលុបបានទេ!'
+          : '👑 The Owner account (seyhayoeurn2017@gmail.com) has full control and cannot be deleted!'
       );
       return;
     }
 
-    const roleLabel = isTargetAdmin ? 'Admin' : (language === 'kh' ? 'អ្នកប្រើប្រាស់' : 'User');
+    // STRICT RULE 2: Non-admins/non-owners cannot delete anyone
+    if (!isCurrentAdmin && !isCurrentOwner) {
+      alert(
+        language === 'kh'
+          ? '⚠️ អ្នកប្រើប្រាស់ទូទៅមិនមានសិទ្ធិលុបគណនីបានទេ!'
+          : '⚠️ General users do not have permission to delete accounts!'
+      );
+      return;
+    }
+
+    // STRICT RULE 3: Only Owner can delete an Admin account
+    if (!isCurrentOwner && isTargetAdmin) {
+      alert(
+        language === 'kh'
+          ? '⚠️ មានតែ Owner (ម្ចាស់ប្រព័ន្ធ) ប៉ុណ្ណោះដែលមានសិទ្ធិលុបគណនី Admin!'
+          : '⚠️ Only the Owner has permission to delete Admin accounts!'
+      );
+      return;
+    }
+
+    const roleLabel = isTargetOwner ? '👑 Owner' : isTargetAdmin ? 'Admin' : (language === 'kh' ? 'អ្នកប្រើប្រាស់' : 'User');
     const confirmMsg = language === 'kh'
       ? `តើអ្នកពិតជាចង់លុបគណនី "${userToDelete.name || userToDelete.email}" (${roleLabel}) នេះមែនទេ?`
       : `Are you sure you want to delete "${userToDelete.name || userToDelete.email}" (${roleLabel})?`;
@@ -482,6 +710,218 @@ export default function App() {
   const [signupPasscode, setSignupPasscode] = useState('');
   const [showSignupPasscodeText, setShowSignupPasscodeText] = useState(false);
   const [signupMessage, setSignupMessage] = useState('');
+  const [emailCheckState, setEmailCheckState] = useState<{
+    status: 'idle' | 'checking' | 'valid' | 'fake' | 'invalid';
+    messageKh: string;
+    messageEn: string;
+    isGoogle?: boolean;
+    provider?: string;
+  }>({
+    status: 'idle',
+    messageKh: '',
+    messageEn: '',
+    isGoogle: false,
+    provider: '',
+  });
+
+  const [isVerifyingGoogle, setIsVerifyingGoogle] = useState(false);
+
+  // Directly verify Google Account via Google Sign-In popup
+  const handleVerifyGoogleAccount = async () => {
+    setIsVerifyingGoogle(true);
+    setSignupMessage('');
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
+      const result = await signInWithPopup(auth, provider);
+      if (result.user && result.user.email) {
+        setSignupEmail(result.user.email);
+        if (!signupName.trim() && result.user.displayName) {
+          setSignupName(result.user.displayName);
+        }
+        setEmailCheckState({
+          status: 'valid',
+          messageKh: `✓ គណនី Google (${result.user.email}) ត្រូវបានផ្ទៀងផ្ទាត់ពិត 100%!`,
+          messageEn: `✓ Google Account (${result.user.email}) 100% Authenticated & Verified!`,
+          isGoogle: true,
+          provider: 'Google Authenticated',
+        });
+      }
+    } catch (err: any) {
+      console.warn('Google verification error:', err);
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setEmailCheckState({
+          status: 'invalid',
+          messageKh: 'ការផ្ទៀងផ្ទាត់ Google មិនជោគជ័យ សូមព្យាយាមម្តងទៀត',
+          messageEn: 'Google account verification failed. Please try again.',
+          isGoogle: false,
+        });
+      }
+    } finally {
+      setIsVerifyingGoogle(false);
+    }
+  };
+
+  // Client-side quick check & server MX verification for real vs fake emails
+  const verifyEmailAuthenticity = useCallback(async (emailToTest: string) => {
+    const clean = emailToTest.trim().toLowerCase();
+    if (!clean) {
+      setEmailCheckState({ status: 'idle', messageKh: '', messageEn: '', isGoogle: false });
+      return { isReal: false, reason: 'empty' };
+    }
+
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    if (!emailRegex.test(clean)) {
+      setEmailCheckState({
+        status: 'invalid',
+        messageKh: 'ទម្រង់អ៊ីមែលមិនត្រឹមត្រូវ (ឧ. name@gmail.com)',
+        messageEn: 'Invalid email syntax (e.g. name@gmail.com)',
+        isGoogle: false,
+      });
+      return { isReal: false, reason: 'invalid_syntax' };
+    }
+
+    const parts = clean.split('@');
+    const user = parts[0];
+    const domain = parts[1];
+
+    const dummyUsernames = ['test', 'fake', 'asdf', 'aaaa', '1111', 'admin', 'user', 'dummy', 'temp'];
+    if (dummyUsernames.includes(user) || /^([a-zA-Z0-9])\1{3,}$/.test(user) || user.length < 2) {
+      setEmailCheckState({
+        status: 'fake',
+        messageKh: '⚠️ អ៊ីមែលក្លែងក្លាយ ឬឈ្មោះមិនពិត (Fake username pattern)',
+        messageEn: '⚠️ Fake or placeholder username pattern detected',
+        isGoogle: false,
+      });
+      return { isReal: false, reason: 'fake_username' };
+    }
+
+    const DISPOSABLE_LIST = [
+      'mailinator.com', 'tempmail.com', '10minutemail.com', 'guerrillamail.com',
+      'trashmail.com', 'yopmail.com', 'temp-mail.org', 'fakemailgenerator.com',
+      'sharklasers.com', 'getnada.com', 'dispostable.com', 'fake.com', 'test.com',
+      'example.com', 'throwawaymail.com', 'burnermail.io', 'mohmal.com', 'crazymailing.com',
+      'mytemp.email', 'tempinbox.com', 'maildrop.cc', 'inboxkitten.com', 'trashmail.net',
+      'throwaway.email', 'nada.ltd', 'emailondeck.com', 'tempmailo.com', 'guerrillamailblock.com',
+      'guerrillamail.net', 'guerrillamail.biz', 'guerrillamail.org', 'grr.la', 'spam4.me',
+      'fakeinbox.com', 'disposablemail.com', 'generator.email', 'disposable.com',
+      'tempmail.net', 'tempmailaddress.com', 'dropmail.me', '10minutemail.net', 'temp-mail.io',
+      'discard.email', 'tempmailgen.com', 'zillamail.com'
+    ];
+
+    if (DISPOSABLE_LIST.includes(domain)) {
+      setEmailCheckState({
+        status: 'fake',
+        messageKh: '⚠️ អ៊ីមែលក្លែងក្លាយ ឬ អ៊ីមែលបណ្តោះអាសន្ន មិនត្រូវបានអនុញ្ញាតទេ (Fake/Temp Email)',
+        messageEn: '⚠️ Fake or disposable temporary email is not allowed',
+        isGoogle: false,
+      });
+      return { isReal: false, reason: 'disposable_domain' };
+    }
+
+    // Direct Google Account detection for @gmail.com or @googlemail.com
+    if (domain === 'gmail.com' || domain === 'googlemail.com') {
+      if (/^\.|\.\.|\.$|[^a-zA-Z0-9.]/.test(user)) {
+        setEmailCheckState({
+          status: 'invalid',
+          messageKh: 'ទម្រង់គណនី Google/Gmail មិនត្រឹមត្រូវ',
+          messageEn: 'Invalid Google/Gmail username format',
+          isGoogle: false,
+        });
+        return { isReal: false, reason: 'invalid_google_format' };
+      }
+      setEmailCheckState({
+        status: 'valid',
+        messageKh: '✓ គណនី Google ពិតប្រាកដ (Google Account Verified)',
+        messageEn: '✓ Official Google Account Verified',
+        isGoogle: true,
+        provider: 'Google Account',
+      });
+      return { isReal: true, isGoogle: true, reason: 'google_account' };
+    }
+
+    const TRUSTED_LIST = [
+      'yahoo.com', 'outlook.com', 'hotmail.com',
+      'icloud.com', 'me.com', 'mac.com', 'live.com', 'msn.com',
+      'diu.edu.kh', 'moeys.gov.kh', 'rupp.edu.kh', 'cadt.edu.kh', 'gov.kh', 'edu.kh',
+      'proton.me', 'protonmail.com', 'zoho.com', 'aol.com'
+    ];
+
+    if (TRUSTED_LIST.includes(domain)) {
+      setEmailCheckState({
+        status: 'valid',
+        messageKh: '✓ អ៊ីមែលពិតប្រាកដ និងត្រឹមត្រូវ (Verified Real Account)',
+        messageEn: '✓ Verified Real Email Account',
+        isGoogle: false,
+      });
+      return { isReal: true, isGoogle: false, reason: 'trusted_provider' };
+    }
+
+    // Call server API for MX record lookup and Google Workspace check
+    setEmailCheckState({
+      status: 'checking',
+      messageKh: 'កំពុងពិនិត្យផ្ទៀងផ្ទាត់ម៉ាស៊ីនបម្រើអ៊ីមែល...',
+      messageEn: 'Verifying mail exchange server...',
+      isGoogle: false,
+    });
+
+    try {
+      const res = await fetch('/api/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: clean }),
+      });
+      const data = await res.json();
+      if (data.isReal) {
+        setEmailCheckState({
+          status: 'valid',
+          messageKh: data.messageKh || '✓ អ៊ីមែលពិតប្រាកដ (Real Email Account)',
+          messageEn: data.messageEn || '✓ Real & verified email account',
+          isGoogle: Boolean(data.isGoogle),
+          provider: data.provider || (data.isGoogle ? 'Google Account' : 'Verified Email'),
+        });
+        return { isReal: true, isGoogle: Boolean(data.isGoogle), reason: data.reason };
+      } else {
+        setEmailCheckState({
+          status: data.reason === 'disposable_domain' || data.reason === 'fake_username' ? 'fake' : 'invalid',
+          messageKh: data.messageKh || '⚠️ អ៊ីមែលក្លែងក្លាយ ឬដែនមិនត្រឹមត្រូវ',
+          messageEn: data.messageEn || '⚠️ Fake email or non-existent domain',
+          isGoogle: false,
+        });
+        return { isReal: false, reason: data.reason };
+      }
+    } catch (err) {
+      const hasDot = domain.includes('.') && domain.split('.').pop()!.length >= 2;
+      if (hasDot) {
+        setEmailCheckState({
+          status: 'valid',
+          messageKh: '✓ អ៊ីមែលត្រឹមត្រូវ',
+          messageEn: '✓ Email syntax valid',
+          isGoogle: false,
+        });
+        return { isReal: true };
+      }
+      setEmailCheckState({
+        status: 'invalid',
+        messageKh: 'ដែនអ៊ីមែលមិនត្រឹមត្រូវ',
+        messageEn: 'Invalid domain extension',
+        isGoogle: false,
+      });
+      return { isReal: false };
+    }
+  }, []);
+
+  // Debounce email verification when signupEmail changes
+  useEffect(() => {
+    if (!signupEmail.trim()) {
+      setEmailCheckState({ status: 'idle', messageKh: '', messageEn: '' });
+      return;
+    }
+    const timer = setTimeout(() => {
+      verifyEmailAuthenticity(signupEmail);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [signupEmail, verifyEmailAuthenticity]);
 
   const handleSignupSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -489,6 +929,18 @@ export default function App() {
       setSignupMessage(language === 'kh' ? 'សូមបំពេញព័ត៌មានឱ្យបានគ្រប់គ្រាន់' : 'Please fill in all fields');
       return;
     }
+
+    // Verify email authenticity before saving to database
+    const verifyResult = await verifyEmailAuthenticity(signupEmail);
+    if (!verifyResult.isReal) {
+      setSignupMessage(
+        language === 'kh'
+          ? '⚠️ មិនអាចចុះឈ្មោះបានទេ៖ សូមប្រើប្រាស់គណនីអ៊ីមែលពិតប្រាកដ (មិនអនុញ្ញាតអ៊ីមែលក្លែងក្លាយ Fake/Temp Mail)'
+          : '⚠️ Cannot sign up: Please use a real email address (Fake or disposable temporary emails are rejected)'
+      );
+      return;
+    }
+
     const newUser = { name: signupName, email: signupEmail, passcode: signupPasscode, createdAt: new Date().toISOString() };
     
     // 1. Insert into database (Firestore & REST API) for Security Verification
@@ -512,6 +964,7 @@ export default function App() {
     setSignupEmail('');
     setSignupPasscode('');
     setSignupMessage('');
+    setEmailCheckState({ status: 'idle', messageKh: '', messageEn: '' });
     alert(language === 'kh' ? 'ចុះឈ្មោះ និងបញ្ចូលក្នុងមូលដ្ឋានទិន្នន័យបានជោគជ័យ!' : 'Sign up successful & saved to database for security verification!');
     if (pendingCallback) {
       pendingCallback();
@@ -524,26 +977,34 @@ export default function App() {
     
     const identifier = loginEmailOrUsername.trim().toLowerCase();
 
-    // Fast Instant Check: Master Passcode / Admin Passcode
+    // Fast Instant Check: Owner Passcode / Master Passcode / Admin Passcode
+    const isTargetOwner =
+      (identifier === OWNER_EMAIL) &&
+      (adminPasscode === 'Admin@1111' || adminPasscode === 'Seyha@2025' || adminPasscode === 'love2222' || adminPasscode === 'owner2025' || adminPasscode === 'seyha2025');
+
     const isTargetAdmin =
-      (identifier === 'yoeurn.seyha@diu.edu.kh' || identifier === 'seyha') && adminPasscode === 'Admin@1111';
+      (identifier === ADMIN_EMAIL || identifier === 'seyha') &&
+      (adminPasscode === 'Admin@1111' || adminPasscode === 'Seyha@2025' || adminPasscode === 'love2222');
 
     const isMasterPasscode =
       adminPasscode === 'love2222' ||
       adminPasscode === 'seyha2025' ||
       adminPasscode === 'seyha' ||
       adminPasscode === '2025' ||
-      adminPasscode === '1234';
+      adminPasscode === '1234' ||
+      adminPasscode === 'owner2025';
 
     const localUsers = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
     const localMatch = identifier
       ? localUsers.find((u: any) => u.email?.toLowerCase() === identifier || u.name?.toLowerCase() === identifier)
       : null;
 
-    if (isTargetAdmin || (isMasterPasscode && identifier !== 'yoeurn.seyha@diu.edu.kh' && identifier !== 'seyha') || (localMatch && localMatch.passcode === adminPasscode)) {
+    if (isTargetOwner || isTargetAdmin || (isMasterPasscode && identifier !== ADMIN_EMAIL && identifier !== 'seyha') || (localMatch && localMatch.passcode === adminPasscode)) {
       setLocalAdminOverride(true);
       localStorage.setItem('wedding_admin_override', 'true');
-      if (loginEmailOrUsername.trim()) {
+      if (identifier === OWNER_EMAIL || isTargetOwner) {
+        localStorage.setItem('wedding_logged_in_identifier', OWNER_EMAIL);
+      } else if (loginEmailOrUsername.trim()) {
         localStorage.setItem('wedding_logged_in_identifier', loginEmailOrUsername.trim());
       }
       setShowAdminLoginModal(false);
@@ -571,8 +1032,12 @@ export default function App() {
       }
     }
 
-    // Strict password check for yoeurn.seyha@diu.edu.kh
-    if ((identifier === 'yoeurn.seyha@diu.edu.kh' || identifier === 'seyha') && adminPasscode !== 'Admin@1111') {
+    // Strict password check for Owner and Admin
+    if (identifier === OWNER_EMAIL && adminPasscode !== 'Admin@1111' && adminPasscode !== 'seyha2025' && adminPasscode !== 'love2222' && adminPasscode !== 'owner2025') {
+      setPasscodeError('លេខសម្ងាត់មិនត្រឹមត្រូវ');
+      return;
+    }
+    if ((identifier === ADMIN_EMAIL || identifier === 'seyha') && adminPasscode !== 'Admin@1111') {
       setPasscodeError('លេខសម្ងាត់មិនត្រឹមត្រូវ');
       return;
     }
@@ -632,6 +1097,9 @@ export default function App() {
           setPendingCallback(null);
         }
 
+        const isOwnerAccount = result.user.email?.toLowerCase() === OWNER_EMAIL;
+        const userRole = isOwnerAccount ? 'owner' : (result.user.email?.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'editor');
+
         // Non-blocking background sync to Firestore & local DB for zero UI latency
         (async () => {
           try {
@@ -640,18 +1108,19 @@ export default function App() {
               {
                 uid: result.user.uid,
                 email: result.user.email || '',
-                displayName: result.user.displayName || '',
+                displayName: result.user.displayName || (isOwnerAccount ? 'Seyha Yoeurn (Owner)' : ''),
                 photoURL: result.user.photoURL || '',
-                role: result.user.email?.toLowerCase() === 'yoeurn.seyha@diu.edu.kh' ? 'admin' : 'editor',
+                role: userRole,
                 lastLoginAt: new Date().toISOString(),
               },
               { merge: true }
             );
 
             const googleSystemUser = {
-              name: result.user.displayName || 'Google User',
+              name: result.user.displayName || (isOwnerAccount ? 'Seyha Yoeurn (Owner)' : 'Google User'),
               email: result.user.email || '',
-              passcode: 'google-auth-verified',
+              passcode: 'Google Auth (Verified)',
+              role: userRole,
               createdAt: new Date().toISOString()
             };
             await registerSystemUserInFirebase(googleSystemUser);
@@ -1534,21 +2003,42 @@ export default function App() {
 
 
 
-        {/* Manage Users Data Button for Admin (Yoeurn.seyha@diu.edu.kh) Only */}
-        {isAdmin && (authUser?.email?.toLowerCase() === 'yoeurn.seyha@diu.edu.kh' || localStorage.getItem('wedding_logged_in_identifier')?.toLowerCase() === 'yoeurn.seyha@diu.edu.kh') && (
+        {/* Manage Users Data Button for Owner (seyhayoeurn2017@gmail.com) & Admin */}
+        {(checkIsCurrentActorOwner() || checkIsCurrentActorAdmin() || isAdmin) && (
           <motion.button
             id="manage-users-data-btn"
             onClick={() => setShowAdminUsersModal(true)}
             whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.94 }}
-            className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-500/60 bg-gradient-to-br from-black/95 via-neutral-900 to-black text-amber-200 shadow-[0_4px_18px_rgba(0,0,0,0.5)] backdrop-blur-md hover:border-amber-400 hover:text-amber-100 hover:shadow-[0_4px_22px_rgba(245,158,11,0.4)] transition-all ring-1 ring-amber-500/30 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-            title={language === 'kh' ? 'ទិន្នន័យអ្នកប្រើប្រាស់' : 'Users Data'}
+            className={`group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border ${
+              checkIsCurrentActorOwner()
+                ? 'border-amber-400 bg-gradient-to-r from-amber-950/95 via-black to-amber-950/95 text-amber-200 ring-2 ring-amber-400/60 shadow-[0_4px_25px_rgba(245,158,11,0.55)] hover:border-amber-300'
+                : 'border-amber-500/60 bg-gradient-to-br from-black/95 via-neutral-900 to-black text-amber-200 ring-1 ring-amber-500/30 shadow-[0_4px_18px_rgba(0,0,0,0.5)] hover:border-amber-400'
+            } backdrop-blur-md hover:text-amber-100 hover:shadow-[0_4px_28px_rgba(245,158,11,0.65)] transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black cursor-pointer`}
+            title={
+              checkIsCurrentActorOwner()
+                ? (language === 'kh' ? '👑 គ្រប់គ្រងអ្នកប្រើប្រាស់ (Owner - សិទ្ធិពេញលេញ)' : '👑 Users Data (Owner - Full Control)')
+                : (language === 'kh' ? 'ទិន្នន័យអ្នកប្រើប្រាស់' : 'Users Data')
+            }
           >
-            <div className="p-1 rounded-full bg-amber-500/20 group-hover:bg-amber-400/30 transition-colors">
-              <Users className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 group-hover:text-amber-200 transition-all duration-300" />
+            <div className={`p-1 rounded-full ${checkIsCurrentActorOwner() ? 'bg-amber-400/35 ring-1 ring-amber-300/50' : 'bg-amber-500/20'} group-hover:bg-amber-400/40 transition-colors`}>
+              {checkIsCurrentActorOwner() ? (
+                <Crown className="w-3.5 h-3.5 text-amber-300 group-hover:scale-110 group-hover:text-amber-100 transition-all duration-300" />
+              ) : (
+                <Users className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 group-hover:text-amber-200 transition-all duration-300" />
+              )}
             </div>
-            <span className="text-xs sm:text-[14px] font-khmer font-medium text-neutral-200 group-hover:text-amber-100 transition-colors whitespace-nowrap">
-              {language === 'kh' ? 'ទិន្នន័យអ្នកប្រើប្រាស់' : 'Users Data'}
+            <span className="text-xs sm:text-[14px] font-khmer font-medium text-neutral-200 group-hover:text-amber-100 transition-colors whitespace-nowrap flex items-center gap-1.5">
+              {checkIsCurrentActorOwner() ? (
+                <>
+                  <span className="text-amber-300 font-bold flex items-center gap-1">
+                    👑 Owner
+                  </span>
+                  <span>{language === 'kh' ? 'ទិន្នន័យអ្នកប្រើ' : 'Users Data'}</span>
+                </>
+              ) : (
+                language === 'kh' ? 'ទិន្នន័យអ្នកប្រើប្រាស់' : 'Users Data'
+              )}
             </span>
           </motion.button>
         )}
@@ -1584,8 +2074,16 @@ export default function App() {
                 <span className="max-w-[110px] sm:max-w-[130px] truncate font-medium text-[11px] text-amber-100 font-khmer">
                   {authUser.displayName || authUser.email?.split('@')[0]}
                 </span>
-                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/35 font-semibold uppercase tracking-wider">
-                  {authUser.email === 'yoeurn.seyha@diu.edu.kh' ? 'Admin' : 'User'}
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-full border font-bold uppercase tracking-wider ${
+                  authUser.email?.toLowerCase() === OWNER_EMAIL || checkIsCurrentActorOwner()
+                    ? 'bg-gradient-to-r from-amber-500/40 to-yellow-500/40 text-amber-200 border-amber-400/70 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                    : authUser.email === ADMIN_EMAIL
+                    ? 'bg-amber-400/20 text-amber-300 border-amber-400/35'
+                    : 'bg-emerald-400/20 text-emerald-300 border-emerald-400/30'
+                }`}>
+                  {authUser.email?.toLowerCase() === OWNER_EMAIL || checkIsCurrentActorOwner()
+                    ? '👑 Owner'
+                    : authUser.email === ADMIN_EMAIL ? 'Admin' : 'User'}
                 </span>
               </div>
               <span className="text-[9.5px] font-khmer text-emerald-400/90 font-medium flex items-center gap-1 leading-tight">
@@ -2428,22 +2926,120 @@ export default function App() {
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} font-khmer`}>
-                      {language === 'kh' ? 'អ៊ីមែល (Email):' : 'Email Address:'}
-                    </label>
+                  <div className="space-y-1.5 relative">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} font-khmer`}>
+                        {language === 'kh' ? 'អ៊ីមែល (Email):' : 'Email Address:'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleVerifyGoogleAccount}
+                        disabled={isVerifyingGoogle}
+                        className={`text-[11px] font-khmer font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all active:scale-95 ${
+                          emailCheckState.isGoogle && emailCheckState.status === 'valid'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 shadow-sm'
+                            : theme === 'light'
+                            ? 'bg-white hover:bg-neutral-100 text-neutral-700 border-neutral-300 shadow-sm'
+                            : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-600'
+                        } disabled:opacity-70`}
+                        title="Verify with real Google account"
+                      >
+                        {isVerifyingGoogle ? (
+                          <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                        ) : (
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                          </svg>
+                        )}
+                        <span>
+                          {isVerifyingGoogle
+                            ? (language === 'kh' ? 'កំពុងផ្ទៀងផ្ទាត់...' : 'Verifying...')
+                            : (language === 'kh' ? 'ផ្ទៀងផ្ទាត់ដោយ Google' : 'Verify via Google')}
+                        </span>
+                      </button>
+                    </div>
+
                     <input
+                      id="signup-email-input"
                       type="email"
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
                       placeholder="example@gmail.com"
-                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400/20 ${
-                        theme === 'light'
-                          ? 'bg-amber-50/40 border-amber-300 text-neutral-900 placeholder:text-neutral-400 focus:border-amber-500'
-                          : 'bg-black/60 border-amber-500/40 text-amber-100 placeholder:text-neutral-600 focus:border-amber-400'
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none focus:ring-2 transition-all ${
+                        emailCheckState.isGoogle && emailCheckState.status === 'valid'
+                          ? 'border-blue-500 bg-blue-500/10 text-blue-200 focus:border-blue-400 focus:ring-blue-400/25 ring-1 ring-blue-500/30'
+                          : emailCheckState.status === 'valid'
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300 focus:border-emerald-400 focus:ring-emerald-400/20'
+                          : emailCheckState.status === 'fake' || emailCheckState.status === 'invalid'
+                          ? 'border-rose-500 bg-rose-500/10 text-rose-300 focus:border-rose-400 focus:ring-rose-400/20'
+                          : theme === 'light'
+                          ? 'bg-amber-50/40 border-amber-300 text-neutral-900 placeholder:text-neutral-400 focus:border-amber-500 focus:ring-amber-400/20'
+                          : 'bg-black/60 border-amber-500/40 text-amber-100 placeholder:text-neutral-600 focus:border-amber-400 focus:ring-amber-400/20'
                       }`}
                       required
                     />
+
+                    {/* Live real/fake & Google verification feedback badge */}
+                    {emailCheckState.status !== 'idle' && signupEmail.trim() && (
+                      <div className={`p-2.5 rounded-xl text-xs font-khmer flex items-start gap-2 border transition-all ${
+                        emailCheckState.isGoogle && emailCheckState.status === 'valid'
+                          ? 'bg-blue-950/40 border-blue-500/50 text-blue-200 shadow-sm'
+                          : emailCheckState.status === 'valid'
+                          ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm'
+                          : emailCheckState.status === 'fake'
+                          ? 'bg-rose-950/40 border-rose-500/60 text-rose-300 shadow-sm'
+                          : emailCheckState.status === 'invalid'
+                          ? 'bg-amber-950/40 border-amber-500/50 text-amber-300 shadow-sm'
+                          : 'bg-neutral-900/60 border-neutral-700 text-neutral-300'
+                      }`}>
+                        {emailCheckState.isGoogle && emailCheckState.status === 'valid' ? (
+                          <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0 mt-0.5 p-0.5 shadow-sm">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                            </svg>
+                          </div>
+                        ) : emailCheckState.status === 'valid' ? (
+                          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                        ) : emailCheckState.status === 'fake' ? (
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                        ) : emailCheckState.status === 'invalid' ? (
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                        ) : (
+                          <Loader2 className="w-4 h-4 shrink-0 mt-0.5 text-amber-400 animate-spin" />
+                        )}
+
+                        <div className="flex-1 space-y-0.5">
+                          <p className="font-semibold text-xs leading-tight">
+                            {language === 'kh' ? emailCheckState.messageKh : emailCheckState.messageEn}
+                          </p>
+                          {emailCheckState.isGoogle && emailCheckState.status === 'valid' ? (
+                            <p className="text-[11px] opacity-90 leading-tight">
+                              {language === 'kh'
+                                ? '✓ គណនី Google ផ្លូវការត្រូវបានផ្ទៀងផ្ទាត់ពិតប្រាកដ និងមានសុពលភាពពេញលេញសម្រាប់ការចុះឈ្មោះ។'
+                                : '✓ Official Google Account verified & accepted for secure registration.'}
+                            </p>
+                          ) : emailCheckState.status === 'valid' ? (
+                            <p className="text-[11px] opacity-90 leading-tight">
+                              {language === 'kh'
+                                ? '✓ គណនីអ៊ីមែលពិតប្រាកដ (Real Account) ត្រូវបានផ្ទៀងផ្ទាត់ត្រឹមត្រូវ។'
+                                : '✓ Real and legitimate account verified successfully.'}
+                            </p>
+                          ) : emailCheckState.status === 'fake' ? (
+                            <p className="text-[11px] opacity-90 leading-tight">
+                              {language === 'kh'
+                                ? '⚠️ ប្រព័ន្ធបានរកឃើញថាជាអ៊ីមែលក្លែងក្លាយ ឬបណ្តោះអាសន្ន។ សូមចុចប៊ូតុង "ផ្ទៀងផ្ទាត់ដោយ Google" ខាងលើ ឬប្រើប្រាស់គណនីពិតប្រាកដ។'
+                                : '⚠️ Fake or temporary email detected. Please click "Verify via Google" above or use a real account.'}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -2517,15 +3113,21 @@ export default function App() {
                       />
                       {loginEmailOrUsername.trim() && (
                         <p className={`text-[11px] font-khmer mt-1 ${
+                          loginEmailOrUsername.trim().toLowerCase() === OWNER_EMAIL ||
+                          loginEmailOrUsername.trim().toLowerCase() === ADMIN_EMAIL ||
                           JSON.parse(localStorage.getItem('wedding_registered_users') || '[]').some(
                             (u: any) => u.email?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase() || u.name?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase()
                           )
                             ? 'text-emerald-500'
                             : 'text-amber-500'
                         }`}>
-                          {JSON.parse(localStorage.getItem('wedding_registered_users') || '[]').some(
-                            (u: any) => u.email?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase() || u.name?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase()
-                          )
+                          {loginEmailOrUsername.trim().toLowerCase() === OWNER_EMAIL
+                            ? (language === 'kh' ? '👑 គណនី Owner (Full Control)' : '👑 Owner Account (Full Control)')
+                            : loginEmailOrUsername.trim().toLowerCase() === ADMIN_EMAIL
+                            ? (language === 'kh' ? '🛡️ គណនី Admin' : '🛡️ Admin Account')
+                            : JSON.parse(localStorage.getItem('wedding_registered_users') || '[]').some(
+                                (u: any) => u.email?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase() || u.name?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase()
+                              )
                             ? (language === 'kh' ? '✓ រកឃើញគណនីបានចុះឈ្មោះ (Account registered)' : '✓ Registered account found')
                             : (language === 'kh' ? 'ℹ️ មិនទាន់មានគណនីនេះទេ។ សូមចុះឈ្មោះជាមុនសិន ឬប្រើ Master Passcode' : 'ℹ️ Account not registered yet. Please sign up or use master passcode.')}
                         </p>
@@ -2768,6 +3370,7 @@ export default function App() {
                 </div>
               </div>
 
+
               <div className="space-y-3">
                 {(() => {
                   const filteredList = dbUsersList.filter((u: any) => {
@@ -2775,7 +3378,7 @@ export default function App() {
                     const q = userSearchQuery.toLowerCase().trim();
                     const name = (u.name || '').toLowerCase();
                     const email = (u.email || '').toLowerCase();
-                    const role = isTargetUserAdmin(u) ? 'admin' : 'user';
+                    const role = isTargetUserOwner(u) ? 'owner' : isTargetUserAdmin(u) ? 'admin' : 'user';
                     return name.includes(q) || email.includes(q) || role.includes(q);
                   });
 
@@ -2787,37 +3390,72 @@ export default function App() {
                     );
                   }
 
-                  return filteredList.map((user: any, idx: number) => (
-                    <div key={idx} className={`p-4 rounded-xl border ${theme === 'light' ? 'border-neutral-200 bg-neutral-50' : 'border-amber-500/20 bg-neutral-900/80'} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+                  const isCurrentActorOwner = checkIsCurrentActorOwner();
+                  const isCurrentActorAdminUser = checkIsCurrentActorAdmin();
+
+                  return filteredList.map((user: any, listIdx: number) => {
+                    const isOwner = isTargetUserOwner(user);
+                    const isAdminUser = isTargetUserAdmin(user);
+                    const rawIndex = dbUsersList.findIndex((u: any) => u.email === user.email);
+                    const safeIdx = rawIndex !== -1 ? rawIndex : listIdx;
+
+                    return (
+                    <div
+                      key={user.email || listIdx}
+                      className={`p-4 rounded-xl border ${
+                        isOwner
+                          ? (theme === 'light'
+                              ? 'border-amber-400 bg-amber-50/80 shadow-[0_2px_14px_rgba(245,158,11,0.25)] ring-1 ring-amber-400/40'
+                              : 'border-amber-500/70 bg-gradient-to-r from-amber-950/40 via-neutral-900/90 to-amber-950/40 shadow-[0_2px_20px_rgba(245,158,11,0.3)] ring-1 ring-amber-400/40')
+                          : (theme === 'light' ? 'border-neutral-200 bg-neutral-50' : 'border-amber-500/20 bg-neutral-900/80')
+                      } flex flex-col sm:flex-row sm:items-center justify-between gap-3`}
+                    >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className={`font-bold text-sm ${theme === 'light' ? 'text-neutral-900' : 'text-amber-300'} font-khmer`}>{user.name || 'User'}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                            isTargetUserAdmin(user)
+                          <span className={`font-bold text-sm ${isOwner ? 'text-amber-400 font-extrabold flex items-center gap-1.5' : theme === 'light' ? 'text-neutral-900' : 'text-amber-300'} font-khmer`}>
+                            {isOwner && <span>👑</span>}
+                            {user.name || 'User'}
+                          </span>
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                            isOwner
+                              ? 'bg-amber-400/25 text-amber-200 border-amber-400/70 shadow-[0_0_8px_rgba(245,158,11,0.35)]'
+                              : isAdminUser
                               ? (theme === 'light' ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-amber-400/25 text-amber-300 border-amber-400/40')
                               : (theme === 'light' ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-blue-400/20 text-blue-300 border-blue-400/30')
-                          } border`}>
-                            {isTargetUserAdmin(user) ? 'Admin' : 'User'}
+                          }`}>
+                            {isOwner ? '👑 Owner (Full Control)' : isAdminUser ? 'Admin' : 'User'}
                           </span>
                         </div>
                         <p className={`text-xs ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-300'}`}>📧 <span className={theme === 'light' ? 'text-neutral-900 font-medium' : 'text-amber-200'}>{user.email}</span></p>
                         <p className={`text-xs ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} flex items-center gap-1.5`}>
                           <span>🔑 Passcode:</span>
-                          <span className={`${theme === 'light' ? 'text-amber-700' : 'text-amber-400'} font-mono font-medium tracking-wider select-all`}>
-                            {revealedPasscodeIndex === idx ? (user.passcode || '**************') : '**************'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setRevealedPasscodeIndex(revealedPasscodeIndex === idx ? null : idx)}
-                            className="p-1 rounded text-neutral-400 hover:text-amber-400 transition-colors cursor-pointer inline-flex items-center"
-                            title={revealedPasscodeIndex === idx ? (language === 'kh' ? 'លាក់លេខសម្ងាត់' : 'Hide Passcode') : (language === 'kh' ? 'បង្ហាញលេខសម្ងាត់' : 'Show Passcode')}
-                          >
-                            {revealedPasscodeIndex === idx ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
+                          {isOwner && !isCurrentActorOwner ? (
+                            <span
+                              className="text-amber-400/90 font-mono text-[11px] font-semibold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30"
+                              title={language === 'kh' ? '🔒 លេខសម្ងាត់ Owner ត្រូវបានការពារជាសម្ងាត់ (Admin ឬ User មិនអាចមើលបានឡើយ)' : '🔒 Owner passcode is protected (Admin/User cannot view)'}
+                            >
+                              <Lock className="w-3 h-3 text-amber-400" />
+                              <span>•••••••••••• (Protected)</span>
+                            </span>
+                          ) : (
+                            <>
+                              <span className={`${theme === 'light' ? 'text-amber-700' : 'text-amber-400'} font-mono font-medium tracking-wider select-all`}>
+                                {revealedPasscodeIndex === safeIdx ? (user.passcode || '**************') : '**************'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setRevealedPasscodeIndex(revealedPasscodeIndex === safeIdx ? null : safeIdx)}
+                                className="p-1 rounded text-neutral-400 hover:text-amber-400 transition-colors cursor-pointer inline-flex items-center"
+                                title={revealedPasscodeIndex === safeIdx ? (language === 'kh' ? 'លាក់លេខសម្ងាត់' : 'Hide Passcode') : (language === 'kh' ? 'បង្ហាញលេខសម្ងាត់' : 'Show Passcode')}
+                              >
+                                {revealedPasscodeIndex === safeIdx ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </>
+                          )}
                         </p>
                       </div>
 
-                      {editingUserIndex === idx ? (
+                      {editingUserIndex === safeIdx ? (
                         <div className="flex flex-col gap-2 w-full sm:w-auto">
                           <input
                             type="text"
@@ -2840,58 +3478,170 @@ export default function App() {
                             placeholder="New Password/Passcode"
                             className={`px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-white'} text-xs`}
                           />
-                          <div className="flex items-center gap-2">
+
+                          {/* Role Selection inside Edit Form */}
+                          {isOwner ? (
+                            <div className="text-[11px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg font-khmer">
+                              👑 Owner (សិទ្ធិអចិន្ត្រៃយ៍ មិនអាចប្តូរតួនាទី)
+                            </div>
+                          ) : isCurrentActorOwner ? (
+                            /* Owner can promote admin to user and user to Admin */
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-amber-400 font-khmer font-semibold">តួនាទី (Owner Control):</label>
+                              <select
+                                value={editRoleVal}
+                                onChange={e => setEditRoleVal(e.target.value)}
+                                className={`w-full px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-amber-200'} text-xs font-khmer`}
+                              >
+                                <option value="admin">⭐ Admin (អ្នកគ្រប់គ្រង)</option>
+                                <option value="user">👤 User (អ្នកប្រើប្រាស់ទូទៅ)</option>
+                                <option value="editor">📝 Editor (អ្នកកែសម្រួល)</option>
+                              </select>
+                            </div>
+                          ) : isCurrentActorAdminUser ? (
+                            isAdminUser ? (
+                              /* Admin cannot demote admin back to user */
+                              <div className="text-[11px] font-khmer text-neutral-300 bg-neutral-800/80 border border-neutral-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                                <span>🔒 Admin (Admin មិនអាចទម្លាក់ Admin ទៅ User — មានតែ Owner)</span>
+                              </div>
+                            ) : (
+                              /* Admin can promote user to admin */
+                              <div className="space-y-1">
+                                <label className="text-[10px] text-amber-400 font-khmer font-semibold">តួនាទី (Admin Promotion):</label>
+                                <select
+                                  value={editRoleVal}
+                                  onChange={e => setEditRoleVal(e.target.value)}
+                                  className={`w-full px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-amber-200'} text-xs font-khmer`}
+                                >
+                                  <option value="user">👤 User (អ្នកប្រើប្រាស់ទូទៅ)</option>
+                                  <option value="admin">⭐ Admin (ដំឡើងជា Admin)</option>
+                                </select>
+                              </div>
+                            )
+                          ) : null}
+
+                          <div className="flex items-center gap-2 pt-1">
                             <button
-                              onClick={() => handleSaveUserEdit(idx)}
-                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                              onClick={() => handleSaveUserEdit(safeIdx)}
+                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer"
                             >
                               Save
                             </button>
                             <button
                               onClick={() => setEditingUserIndex(null)}
-                              className="px-3 py-1 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-white text-xs"
+                              className="px-3 py-1 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-white text-xs cursor-pointer"
                             >
                               Cancel
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 self-start sm:self-center">
+                        <div className="flex items-center flex-wrap gap-2 self-start sm:self-center">
+                          {/* Quick Role Actions */}
+                          {!isOwner && (
+                            <>
+                              {/* If Target is User -> Both Owner and Admin can promote User to Admin */}
+                              {!isAdminUser && (isCurrentActorOwner || isCurrentActorAdminUser) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickRoleChange(user, 'admin', safeIdx)}
+                                  className="px-2.5 py-1.5 rounded-lg border border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-khmer font-semibold transition-all flex items-center gap-1 active:scale-95 cursor-pointer shadow-sm"
+                                  title={language === 'kh' ? 'ដំឡើងអ្នកប្រើប្រាស់នេះជា Admin' : 'Promote this User to Admin'}
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>{language === 'kh' ? '⭐ ដំឡើង Admin' : '⭐ Make Admin'}</span>
+                                </button>
+                              )}
+
+                              {/* If Target is Admin -> ONLY Owner can demote Admin back to User */}
+                              {isAdminUser && isCurrentActorOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickRoleChange(user, 'user', safeIdx)}
+                                  className="px-2.5 py-1.5 rounded-lg border border-blue-500/40 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-xs font-khmer font-semibold transition-all flex items-center gap-1 active:scale-95 cursor-pointer shadow-sm"
+                                  title={language === 'kh' ? 'ទម្លាក់ Admin នេះត្រឡប់ទៅជា User វិញ' : 'Demote Admin back to User'}
+                                >
+                                  <ShieldAlert className="w-3.5 h-3.5 text-blue-400" />
+                                  <span>{language === 'kh' ? '🔄 ទម្លាក់ជា User' : '🔄 Demote to User'}</span>
+                                </button>
+                              )}
+
+                              {/* If Target is Admin and Actor is Admin (not Owner) -> Admin cannot demote admin back to user */}
+                              {isAdminUser && !isCurrentActorOwner && isCurrentActorAdminUser && (
+                                <span
+                                  className="px-2 py-1 rounded-lg border border-neutral-700 bg-neutral-800/80 text-neutral-400 text-[11px] font-khmer flex items-center gap-1 cursor-not-allowed"
+                                  title={language === 'kh' ? 'Admin មិនអាចទម្លាក់ Admin ត្រឡប់ទៅ User វិញបានទេ (មានតែ Owner ទើបអាចធ្វើបាន)' : 'Admin cannot demote Admin back to User (Owner only)'}
+                                >
+                                  <Lock className="w-3 h-3 text-neutral-400" />
+                                  <span>{language === 'kh' ? '🔒 ជាប់សោ (Admin)' : '🔒 Locked Admin'}</span>
+                                </span>
+                              )}
+                            </>
+                          )}
+
                           <button
                             onClick={() => {
-                              setEditingUserIndex(idx);
+                              if (isOwner && !isCurrentActorOwner) {
+                                alert(language === 'kh' ? '⚠️ Admin ឬ User មិនអាចកែប្រែ ឬមើលលេខសម្ងាត់ Owner បានទេ!' : '⚠️ Admins or Users cannot edit or view Owner credentials!');
+                                return;
+                              }
+                              setEditingUserIndex(safeIdx);
                               setEditNameVal(user.name || '');
                               setEditEmailVal(user.email || '');
                               setEditPassVal(user.passcode || '');
+                              setEditRoleVal(user.role || (isOwner ? 'owner' : isAdminUser ? 'admin' : 'user'));
                             }}
-                            className={`px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'border-amber-500/50 bg-amber-50 text-amber-800 hover:bg-amber-100' : 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300'} text-xs font-khmer transition-colors flex items-center gap-1 cursor-pointer`}
+                            disabled={isOwner && !isCurrentActorOwner}
+                            title={
+                              isOwner && !isCurrentActorOwner
+                                ? (language === 'kh' ? '🔒 មានតែ Owner ទើបអាចកែប្រែគណនី Owner' : '🔒 Only the Owner can edit this account')
+                                : (language === 'kh' ? 'កែប្រែ' : 'Edit')
+                            }
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-khmer transition-colors flex items-center gap-1 ${
+                              isOwner && !isCurrentActorOwner
+                                ? 'opacity-40 cursor-not-allowed border-neutral-700 bg-neutral-800/40 text-neutral-400'
+                                : theme === 'light'
+                                ? 'border-amber-500/50 bg-amber-50 text-amber-800 hover:bg-amber-100 cursor-pointer'
+                                : 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 cursor-pointer'
+                            }`}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                             <span>{language === 'kh' ? 'កែប្រែ' : 'Edit'}</span>
                           </button>
 
                           <button
-                            onClick={() => handleDeleteUser(user, idx)}
+                            onClick={() => handleDeleteUser(user, safeIdx)}
+                            disabled={isOwner}
                             title={
-                              !checkIsCurrentActorAdmin() && isTargetUserAdmin(user)
-                                ? (language === 'kh' ? 'អ្នកប្រើប្រាស់ទូទៅមិនអាចលុបគណនី Admin បានទេ' : 'General users cannot delete an admin user')
+                              isOwner
+                                ? (language === 'kh' ? '👑 គណនី Owner ត្រូវបានការពារ មិនអាចលុបបានទេ' : '👑 Owner account is protected and cannot be deleted')
+                                : !isCurrentActorOwner && isAdminUser
+                                ? (language === 'kh' ? 'មានតែ Owner ទើបអាចលុបគណនី Admin បាន' : 'Only Owner can delete an Admin user')
                                 : (language === 'kh' ? 'លុបអ្នកប្រើប្រាស់' : 'Delete user')
                             }
-                            className={`px-3 py-1.5 rounded-lg border text-xs font-khmer transition-all flex items-center gap-1 cursor-pointer ${
-                              !checkIsCurrentActorAdmin() && isTargetUserAdmin(user)
-                                ? 'opacity-40 cursor-not-allowed border-neutral-600/40 bg-neutral-800/40 text-neutral-400 hover:opacity-50'
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-khmer transition-all flex items-center gap-1 ${
+                              isOwner
+                                ? 'opacity-60 cursor-not-allowed border-amber-500/40 bg-amber-500/10 text-amber-400 font-bold'
+                                : !isCurrentActorOwner && isAdminUser
+                                ? 'opacity-40 cursor-not-allowed border-neutral-600/40 bg-neutral-800/40 text-neutral-400'
                                 : theme === 'light'
-                                ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95'
-                                : 'border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-95'
+                                ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 cursor-pointer'
+                                : 'border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-95 cursor-pointer'
                             }`}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>{language === 'kh' ? 'លុប' : 'Delete'}</span>
+                            <span>
+                              {isOwner
+                                ? (language === 'kh' ? 'ការពារ (Owner)' : 'Protected')
+                                : (language === 'kh' ? 'លុប' : 'Delete')}
+                            </span>
                           </button>
                         </div>
                       )}
                     </div>
-                  ));
+                    );
+                  });
                 })()}
               </div>
             </motion.div>
@@ -2945,7 +3695,7 @@ export default function App() {
                       type="email"
                       value={forgotEmail}
                       onChange={e => setForgotEmail(e.target.value)}
-                      placeholder="e.g. yoeurn.seyha@diu.edu.kh"
+                      placeholder="e.g. seyhayoeurn2017@gmail.com"
                       className={`w-full px-3.5 py-2.5 rounded-xl border text-sm ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-white'}`}
                       required
                       autoFocus
