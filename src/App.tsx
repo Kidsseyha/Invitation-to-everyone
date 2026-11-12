@@ -2856,44 +2856,54 @@ export default function App() {
                 <X className="w-5 h-5" />
               </button>
 
-              {/* Language and Dark/White Mode buttons above */}
-              <div className="flex items-center justify-between mb-4 pt-1 px-1">
-                <button
-                  type="button"
-                  onClick={toggleLanguage}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-khmer font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
-                    theme === 'light'
-                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
-                      : 'bg-neutral-800 hover:bg-neutral-700 text-amber-300 border-amber-500/40'
-                  }`}
-                  title={language === 'kh' ? 'ប្តូរភាសា (Switch Language)' : 'Switch Language'}
-                >
-                  <Globe className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{language === 'kh' ? '🇰🇭 ភាសាខ្មែរ (KH)' : '🇬🇧 English (EN)'}</span>
-                </button>
+              {/* Language and Dark/White Mode buttons with labels above */}
+              <div className="mb-4 pt-1 px-1 space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-semibold font-khmer opacity-80 px-1">
+                  <span className={theme === 'light' ? 'text-amber-900 font-bold' : 'text-amber-300 font-bold'}>
+                    {language === 'kh' ? '🌐 Language (KH/EN):' : '🌐 Language Toggle:'}
+                  </span>
+                  <span className={theme === 'light' ? 'text-amber-900 font-bold' : 'text-amber-300 font-bold'}>
+                    {language === 'kh' ? '🎨 Theme (Dark/White):' : '🎨 Theme Toggle:'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleLanguage}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-xs font-khmer font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                      theme === 'light'
+                        ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
+                        : 'bg-neutral-800 hover:bg-neutral-700 text-amber-300 border-amber-500/40'
+                    }`}
+                    title={language === 'kh' ? 'ប្តូរភាសា (Switch Language)' : 'Switch Language'}
+                  >
+                    <Globe className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{language === 'kh' ? '🇰🇭 ភាសាខ្មែរ (KH)' : '🇬🇧 English (EN)'}</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleThemeChange(theme === 'light' ? 'dark' : 'light')}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-khmer font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
-                    theme === 'light'
-                      ? 'bg-neutral-900 text-white border-neutral-800 hover:bg-neutral-800'
-                      : 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200'
-                  }`}
-                  title={language === 'kh' ? 'ប្តូរពណ៌ (Theme Mode)' : 'Toggle Theme Mode'}
-                >
-                  {theme === 'light' ? (
-                    <>
-                      <Moon className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{language === 'kh' ? '🌙 របៀបងងឹត (Dark)' : '🌙 Dark Mode'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sun className="w-3.5 h-3.5 text-amber-500" />
-                      <span>{language === 'kh' ? '☀️ របៀបភ្លឺ (White)' : '☀️ White / Light'}</span>
-                    </>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleThemeChange(theme === 'light' ? 'dark' : 'light')}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-xs font-khmer font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+                      theme === 'light'
+                        ? 'bg-neutral-900 text-white border-neutral-800 hover:bg-neutral-800'
+                        : 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200'
+                    }`}
+                    title={language === 'kh' ? 'ប្តូរពណ៌ (Theme Mode)' : 'Toggle Theme Mode'}
+                  >
+                    {theme === 'light' ? (
+                      <>
+                        <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>{language === 'kh' ? '🌙 របៀបងងឹត (Dark)' : '🌙 Dark Mode'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                        <span>{language === 'kh' ? '☀️ របៀបភ្លឺ (White)' : '☀️ White / Light'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className={`text-center pb-5 border-b ${theme === 'light' ? 'border-amber-500/30' : 'border-amber-500/20'} mb-6`}>
