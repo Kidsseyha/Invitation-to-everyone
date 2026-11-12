@@ -1,0 +1,3335 @@
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  X,
+  Save,
+  RotateCcw,
+  Users,
+  Image as ImageIcon,
+  Calendar,
+  MessageSquare,
+  QrCode,
+  Music,
+  Plus,
+  Trash2,
+  Check,
+  Clock,
+  Sparkles,
+  LayoutTemplate,
+  Palette,
+  Heart,
+  Home,
+  Cake,
+  Sliders,
+  Layers,
+  RefreshCw,
+  LayoutGrid,
+  Trello,
+  Disc,
+  Film,
+  CheckCircle2,
+  ExternalLink,
+  ShieldCheck,
+  Play,
+  Pause,
+  BookOpen,
+  MousePointer2,
+  Crown,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+} from 'lucide-react';
+import { WeddingEvent, TimelineItem, Shift } from '../types';
+import { toKhmerNumber } from '../utils/khmerHelpers';
+import { EVENT_PRESETS, EventTypePreset } from '../data/eventTemplates';
+import ImageUploadInput from './ImageUploadInput';
+import { saveEventToFirebase } from '../lib/firebaseServices';
+import DesignSettingsSection from './DesignSettingsSection';
+import CoverInfoEditor from './CoverInfoEditor';
+import ThemeToggle, { ThemeMode } from './ThemeToggle';
+import LanguageToggle from './LanguageToggle';
+import { Language } from '../types';
+
+function generateDayTitlesFromDate(dateStr: string, shiftIndex: number) {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+
+  const dateObj = new Date(y, m - 1, d);
+  const dayOfWeek = dateObj.getDay();
+
+  const khmerDays = [
+    'ថ្ងៃអាទិត្យ',
+    'ថ្ងៃច័ន្ទ',
+    'ថ្ងៃអង្គារ',
+    'ថ្ងៃពុធ',
+    'ថ្ងៃព្រហស្បតិ៍',
+    'ថ្ងៃសុក្រ',
+    'ថ្ងៃសៅរ៍',
+  ];
+  const khmerMonths = [
+    'មករា',
+    'កុម្ភៈ',
+    'មីនា',
+    'មេសា',
+    'ឧសភា',
+    'មិថុនា',
+    'កក្កដា',
+    'សីហា',
+    'កញ្ញា',
+    'តុលា',
+    'វិច្ឆិកា',
+    'ធ្នូ',
+  ];
+
+  const enDays = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  const enMonths = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  const dStr = d < 10 ? `0${d}` : `${d}`;
+  const dKh = toKhmerNumber(dStr);
+  const yKh = toKhmerNumber(y);
+  const dayNumKh = toKhmerNumber(shiftIndex + 1);
+
+  const khTitle = `ថ្ងៃទី${dayNumKh} ៖ ${khmerDays[dayOfWeek]} ទី${dKh} ខែ${khmerMonths[m - 1]} ឆ្នាំ${yKh}`;
+  const enTitle = `Day ${shiftIndex + 1}: ${enDays[dayOfWeek]}, ${enMonths[m - 1]} ${dStr}, ${y}`;
+
+  return {
+    khTitle,
+    enTitle,
+    khmerDay: khmerDays[dayOfWeek],
+    enDay: enDays[dayOfWeek],
+    khmerMonth: khmerMonths[m - 1],
+    enMonth: enMonths[m - 1],
+    dayNumber: dStr,
+    year: y,
+    summaryKh: `${khmerDays[dayOfWeek]} ទី${dKh} ខែ${khmerMonths[m - 1]} ឆ្នាំ${yKh}`,
+    summaryEn: `${enDays[dayOfWeek]}, ${enMonths[m - 1]} ${dStr}, ${y}`,
+  };
+}
+
+interface EventEditorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  event: WeddingEvent;
+  onSave: (updatedEvent: WeddingEvent, refreshEnvelope?: boolean) => Promise<boolean | void> | void;
+  onReset: () => void;
+  theme?: ThemeMode;
+  initialTab?: TabType;
+  language?: Language;
+  onToggleLanguage?: () => void;
+  onChangeTheme?: (theme: ThemeMode) => void;
+}
+
+export type TabType = 'presets' | 'design' | 'couple' | 'photos' | 'schedule' | 'messages' | 'khqr' | 'music';
+
+const MUSIC_PRESETS = [
+  {
+    name: 'បទពិណពាទ្យមង្គលការ (Traditional Wedding Melody)',
+    enName: 'Plan Essential Official Theme (Default)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-2.mp3',
+  },
+  {
+    name: 'បទភ្លេងការបុរាណប្រណិត (Classic Khmer Wedding)',
+    enName: 'Traditional Khmer Wedding Theme (Audio 1)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-1.mp3',
+  },
+  {
+    name: 'ឧបករណ៍តន្ត្រីខ្មែរ រនាតឯក (Khmer Instrument - Roneat)',
+    enName: 'Khmer Instrument (Roneat)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-7.mp3',
+  },
+  {
+    name: 'អរុណោទ័យអង្គរ (Angkor Dawn)',
+    enName: 'Angkor Dawn - Khmer Traditional Instrumental',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-8.mp3',
+  },
+  {
+    name: 'បទភ្លេងមនោសញ្ចេតនាផ្អែមល្ហែម (Romantic Celebration)',
+    enName: 'Romantic Celebration Harmony (Audio 3)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-3.mp3',
+  },
+  {
+    name: 'បទភ្លេងការកម្សាន្តស្រទន់ (Joyful Wedding Melodies)',
+    enName: 'Joyful Wedding Melodies (Audio 4)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-4.mp3',
+  },
+  {
+    name: 'បទភ្លេងការកោះពេជ្រមហាសិរី (Royal Grand Wedding Harmony)',
+    enName: 'Royal Grand Wedding Harmony (Audio 5)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-5.mp3',
+  },
+  {
+    name: 'បទភ្លេងការសម័យទំនើប (Modern Romantic Wedding)',
+    enName: 'Modern Romantic Wedding (Audio 6)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-6.mp3',
+  },
+];
+
+export default function EventEditorModal({
+  isOpen,
+  onClose,
+  event,
+  onSave,
+  onReset,
+  theme = 'dark',
+  initialTab = 'couple',
+  language = 'kh',
+  onToggleLanguage,
+  onChangeTheme,
+}: EventEditorModalProps) {
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    try {
+      const saved = localStorage.getItem('event_editor_active_tab') as TabType | null;
+      if (saved) return saved;
+    } catch {
+      // ignore
+    }
+    return initialTab;
+  });
+
+  const handleSelectTab = (tab: TabType) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('event_editor_active_tab', tab);
+    } catch {
+      // ignore
+    }
+  };
+
+  const [formData, setFormData] = useState<WeddingEvent>(event);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [activeShiftIndex, setActiveShiftIndex] = useState(0);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
+  const [presetFilterType, setPresetFilterType] = useState<string>('all');
+
+  // Scroll navigation refs and states for tabs, presets bar, and content area
+  const tabsNavRef = useRef<HTMLDivElement>(null);
+  const presetBarRef = useRef<HTMLDivElement>(null);
+  const contentContainerRef = useRef<HTMLDivElement>(null);
+  const scrollPosRef = useRef<number>(0);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkTabScroll = () => {
+    if (!tabsNavRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = tabsNavRef.current;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 6);
+  };
+
+  const handleScrollTabs = (direction: 'left' | 'right') => {
+    if (!tabsNavRef.current) return;
+    const scrollAmount = direction === 'left' ? -220 : 220;
+    tabsNavRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    setTimeout(checkTabScroll, 350);
+  };
+
+  useLayoutEffect(() => {
+    if (contentContainerRef.current && scrollPosRef.current > 0) {
+      contentContainerRef.current.scrollTop = scrollPosRef.current;
+    }
+  }, [formData]);
+
+  const handleScrollPresets = (direction: 'left' | 'right') => {
+    if (!presetBarRef.current) return;
+    const scrollAmount = direction === 'left' ? -180 : 180;
+    presetBarRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    checkTabScroll();
+    const el = tabsNavRef.current;
+    if (el) {
+      el.addEventListener('scroll', checkTabScroll, { passive: true });
+      window.addEventListener('resize', checkTabScroll);
+      return () => {
+        el.removeEventListener('scroll', checkTabScroll);
+        window.removeEventListener('resize', checkTabScroll);
+      };
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const activeBtn = tabsNavRef.current?.querySelector(`[id="${activeTab}-tab-btn"]`) as HTMLElement | null;
+    if (activeBtn && tabsNavRef.current) {
+      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      setTimeout(checkTabScroll, 350);
+    }
+  }, [activeTab]);
+
+  const togglePreviewAudio = (url: string) => {
+    if (previewAudioUrl === url) {
+      setPreviewAudioUrl(null);
+    } else {
+      setPreviewAudioUrl(url);
+    }
+  };
+
+  // Template Type and Template Metadata
+  const currentTemplateId = formData.id || 'cmgrawhnk0003le0434762j7n';
+  const currentTemplateType: 'wedding' | 'engagement' | 'housewarming' | 'birthday' | 'anniversary' = (() => {
+    if (formData.eventType) return formData.eventType;
+    if (currentTemplateId.includes('anniversary')) return 'anniversary';
+    if (currentTemplateId.includes('housewarming')) return 'housewarming';
+    if (currentTemplateId.includes('engagement')) return 'engagement';
+    if (currentTemplateId.includes('birthday') || formData.singlePerson) return 'birthday';
+    return 'wedding';
+  })();
+
+  const currentTemplatePreset = EVENT_PRESETS.find(
+    p => p.sampleEvent.id === currentTemplateId
+  ) || EVENT_PRESETS.find(
+    p => p.type === currentTemplateType
+  ) || EVENT_PRESETS[0];
+
+  const templateTypeLabels = {
+    wedding: { kh: 'ពិធីអាពាហ៍ពិពាហ៍', en: 'Wedding Ceremony', icon: Heart, badge: 'អាពាហ៍ពិពាហ៍' },
+    engagement: { kh: 'ពិធីភ្ជាប់ពាក្យ', en: 'Engagement', icon: Sparkles, badge: 'ភ្ជាប់ពាក្យ' },
+    housewarming: { kh: 'ពិធីឡើងគេហដ្ឋានថ្មី', en: 'Housewarming', icon: Home, badge: 'ឡើងគេហដ្ឋាន' },
+    birthday: { kh: 'ពិធីខួបកំណើត', en: 'Birthday Party', icon: Cake, badge: 'ខួបកំណើត' },
+    anniversary: { kh: 'ពិធីខួបមង្គលការ', en: 'Anniversary Party', icon: Crown, badge: 'ខួបមង្គលការ' },
+  };
+
+  const [savedRetrievedInfo, setSavedRetrievedInfo] = useState<WeddingEvent | null>(() => {
+    try {
+      const cached = localStorage.getItem(`wedding_template_saved_${event.id}`) ||
+                     (event.eventType ? localStorage.getItem(`wedding_template_type_${event.eventType}`) : null) ||
+                     localStorage.getItem('wedding_custom_event_data');
+      return cached ? JSON.parse(cached) : event;
+    } catch {
+      return event;
+    }
+  });
+  const [isFetchingSavedInfo, setIsFetchingSavedInfo] = useState(false);
+  const [lastRetrievedTime, setLastRetrievedTime] = useState<string | null>(() => {
+    if (event.updatedAt) {
+      try {
+        return new Date(event.updatedAt).toLocaleTimeString('km-KH');
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const prevIsOpenRef = useRef(false);
+  const prevInitialTabRef = useRef(initialTab);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (!prevIsOpenRef.current || prevInitialTabRef.current !== initialTab) {
+        try {
+          const savedTab = localStorage.getItem('event_editor_active_tab') as TabType | null;
+          if (initialTab && initialTab !== 'couple') {
+            setActiveTab(initialTab);
+            localStorage.setItem('event_editor_active_tab', initialTab);
+          } else if (savedTab) {
+            setActiveTab(savedTab);
+          } else if (initialTab) {
+            setActiveTab(initialTab);
+          }
+        } catch {
+          if (initialTab) setActiveTab(initialTab);
+        }
+      }
+    }
+    prevIsOpenRef.current = isOpen;
+    prevInitialTabRef.current = initialTab;
+  }, [isOpen, initialTab]);
+
+  // Synchronize event changes into formData without ever disrupting the current active tab
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(event);
+    }
+  }, [event, isOpen]);
+
+  // Gallery Photos list
+  const galleryPhotos =
+    formData.config.galleryPhotos && formData.config.galleryPhotos.length > 0
+      ? formData.config.galleryPhotos
+      : [
+          formData.config.photo_gallary.photo1,
+          formData.config.photo_gallary.photo2,
+          formData.config.photo_gallary.photo3,
+          formData.config.photo_gallary.photo4,
+        ].filter(Boolean);
+
+  // Dynamic Category Labels
+  const currentCategory = formData.eventType || 'wedding';
+
+  const categoryCoupleTabLabel = useMemo(() => {
+    switch (currentCategory) {
+      case 'birthday':
+        return 'ម្ចាស់ខួប & ទីតាំង';
+      case 'housewarming':
+        return 'ម្ចាស់ផ្ទះ & ទីតាំង';
+      case 'engagement':
+        return 'គូដណ្តឹង & ទីតាំង';
+      case 'wedding':
+      default:
+        return 'គូស្វាមីភរិយា & ទីតាំង';
+    }
+  }, [currentCategory]);
+
+  const categoryGalleryHeaderLabel = useMemo(() => {
+    switch (currentCategory) {
+      case 'birthday':
+        return 'កម្រងរូបភាពខួបកំណើត (Birthday Gallery)';
+      case 'housewarming':
+        return 'កម្រងរូបភាពឡើងផ្ទះថ្មី (Housewarming Gallery)';
+      case 'engagement':
+        return 'កម្រងរូបភាពពិធីភ្ជាប់ពាក្យ (Engagement Gallery)';
+      case 'wedding':
+      default:
+        return 'កម្រងរូបភាពអាពាហ៍ពិពាហ៍ (Wedding Gallery)';
+    }
+  }, [currentCategory]);
+
+  const categoryGalleryTabLabel = useMemo(() => {
+    switch (currentCategory) {
+      case 'birthday':
+        return `រូបថតខួបកំណើត (${galleryPhotos.length})`;
+      case 'housewarming':
+        return `រូបថតឡើងផ្ទះ (${galleryPhotos.length})`;
+      case 'engagement':
+        return `រូបថតភ្ជាប់ពាក្យ (${galleryPhotos.length})`;
+      case 'wedding':
+      default:
+        return `រូបថត Pre-Wedding (${galleryPhotos.length})`;
+    }
+  }, [currentCategory, galleryPhotos.length]);
+
+  const handleUpdateField = <K extends keyof WeddingEvent>(key: K, value: WeddingEvent[K]) => {
+    setFormData(prev => {
+      const updated = { ...prev, [key]: value };
+      if (key === 'groom' && typeof value === 'string') {
+        updated.config = {
+          ...updated.config,
+          groom_name_kh: value,
+          invitation_kh: {
+            ...updated.config.invitation_kh,
+            groom: value,
+          },
+        };
+      } else if (key === 'groomEn' && typeof value === 'string') {
+        updated.config = {
+          ...updated.config,
+          groom_name_en: value,
+          invitation_en: {
+            ...updated.config.invitation_en,
+            groom: value,
+          },
+        };
+      } else if (key === 'bride' && typeof value === 'string') {
+        updated.config = {
+          ...updated.config,
+          bride_name_kh: value,
+          invitation_kh: {
+            ...updated.config.invitation_kh,
+            bride: value,
+          },
+        };
+      } else if (key === 'brideEn' && typeof value === 'string') {
+        updated.config = {
+          ...updated.config,
+          bride_name_en: value,
+          invitation_en: {
+            ...updated.config.invitation_en,
+            bride: value,
+          },
+        };
+      }
+      return updated;
+    });
+  };
+
+  const handleUpdateConfig = async <K extends keyof WeddingEvent['config']>(
+    key: K,
+    value: WeddingEvent['config'][K]
+  ) => {
+    const newConfig = {
+      ...formData.config,
+      [key]: value,
+    };
+    
+    setFormData(prev => ({
+      ...prev,
+      config: newConfig,
+    }));
+
+    // Automatic save for image-related config changes
+    const imageKeys = ['event_location', 'qr_code', 'qr_code_riel', 'cover_photo'];
+    if (imageKeys.includes(key as string)) {
+      await onSave({
+        ...formData,
+        config: newConfig,
+        eventType: currentTemplateType,
+        updatedAt: new Date().toISOString(),
+      }, false);
+    }
+  };
+
+  const handleUpdateKhContent = (field: string, val: string) => {
+    setFormData(prev => ({
+      ...prev,
+      config: {
+        ...prev.config,
+        ...(field === 'main_title' ? { cover_subtitle_kh: val } : {}),
+        invitation_kh: {
+          ...prev.config.invitation_kh,
+          [field]: val,
+        },
+      },
+    }));
+  };
+
+  const handleUpdateEnContent = (field: string, val: string) => {
+    setFormData(prev => ({
+      ...prev,
+      config: {
+        ...prev.config,
+        ...(field === 'main_title' || field === 'subtitle' ? { cover_subtitle_en: val } : {}),
+        invitation_en: {
+          ...prev.config.invitation_en,
+          [field]: val,
+        },
+      },
+    }));
+  };
+
+  // Gallery Management
+  const handleAddGalleryPhotos = async (newUrls: string[]) => {
+    if (!newUrls || newUrls.length === 0) return;
+    const validUrls = newUrls.filter(Boolean);
+    if (validUrls.length === 0) return;
+    const updated = [...galleryPhotos, ...validUrls];
+    const newFormData = {
+      ...formData,
+      config: {
+        ...formData.config,
+        galleryPhotos: updated,
+        photo_gallary: {
+          photo1: updated[0] || '',
+          photo2: updated[1] || '',
+          photo3: updated[2] || '',
+          photo4: updated[3] || '',
+        },
+      },
+    };
+
+    setFormData(newFormData);
+
+    // Automatic save
+    await onSave({
+      ...newFormData,
+      eventType: currentTemplateType,
+      updatedAt: new Date().toISOString(),
+    }, false);
+  };
+
+  const handleAddGalleryPhoto = async (newUrlOrUrls: string | string[]) => {
+    if (!newUrlOrUrls) return;
+    if (Array.isArray(newUrlOrUrls)) {
+      await handleAddGalleryPhotos(newUrlOrUrls);
+    } else {
+      await handleAddGalleryPhotos([newUrlOrUrls]);
+    }
+  };
+
+  const handleRemoveGalleryPhoto = async (indexToRemove: number) => {
+    const updated = galleryPhotos.filter((_, idx) => idx !== indexToRemove);
+    const updatedCaptions = (formData.config.gallery_photo_captions || []).filter((_, idx) => idx !== indexToRemove);
+    const newFormData = {
+      ...formData,
+      config: {
+        ...formData.config,
+        galleryPhotos: updated,
+        gallery_photo_captions: updatedCaptions,
+        photo_gallary: {
+          photo1: updated[0] || '',
+          photo2: updated[1] || '',
+          photo3: updated[2] || '',
+          photo4: updated[3] || '',
+        },
+      },
+    };
+
+    setFormData(newFormData);
+
+    // Automatic save
+    await onSave({
+      ...newFormData,
+      eventType: currentTemplateType,
+      updatedAt: new Date().toISOString(),
+    }, false);
+  };
+
+  const handleUpdateGalleryPhoto = async (indexToUpdate: number, newUrl: string) => {
+    const updated = galleryPhotos.map((item, idx) => (idx === indexToUpdate ? newUrl : item));
+    const newFormData = {
+      ...formData,
+      config: {
+        ...formData.config,
+        galleryPhotos: updated,
+        photo_gallary: {
+          photo1: updated[0] || '',
+          photo2: updated[1] || '',
+          photo3: updated[2] || '',
+          photo4: updated[3] || '',
+        },
+      },
+    };
+
+    setFormData(newFormData);
+    
+    // Automatic save
+    await onSave({
+        ...newFormData,
+        eventType: currentTemplateType,
+        updatedAt: new Date().toISOString(),
+    }, false);
+  };
+
+  const handleUpdateGalleryPhotoCaption = async (indexToUpdate: number, newCaption: string) => {
+    const currentCaptions = formData.config.gallery_photo_captions || [];
+    const updated = [...currentCaptions];
+    while (updated.length <= indexToUpdate) {
+      updated.push('');
+    }
+    updated[indexToUpdate] = newCaption;
+    
+    const newConfig = {
+      ...formData.config,
+      gallery_photo_captions: updated,
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      config: newConfig,
+    }));
+
+    // For text inputs, we might want to be careful about saving on every keystroke
+    // But since this is a modal and the user specifically asked for automatic save
+    // we'll implement it. In a real app, we'd use debouncing.
+    await onSave({
+      ...formData,
+      config: newConfig,
+      eventType: currentTemplateType,
+      updatedAt: new Date().toISOString(),
+    }, false);
+  };
+
+  // Timeline / Schedule Management
+  const shifts = formData.schedules[0]?.shifts || [];
+  const activeShift = shifts[activeShiftIndex] || shifts[0];
+  const timelineItems = activeShift?.timeLine || [];
+
+  const handleUpdateShiftInfo = (shiftIdx: number, updates: Partial<Shift>) => {
+    const updatedShifts = shifts.map((shift, idx) =>
+      idx === shiftIdx ? { ...shift, ...updates } : shift
+    );
+    setFormData(prev => ({
+      ...prev,
+      schedules: [{ ...prev.schedules[0], shifts: updatedShifts }],
+    }));
+  };
+
+  const handleUpdateShiftDate = (shiftIdx: number, newDate: string, autoFormatTitles = false) => {
+    const formatted = generateDayTitlesFromDate(newDate, shiftIdx);
+    const updates: Partial<Shift> = { date: newDate };
+
+    const currentShift = shifts[shiftIdx];
+    const isDefaultOrEmpty =
+      !currentShift?.name ||
+      currentShift.name.startsWith('ថ្ងៃទី') ||
+      !currentShift?.nameEn ||
+      currentShift.nameEn.startsWith('Day ');
+
+    if ((autoFormatTitles || isDefaultOrEmpty) && formatted) {
+      updates.name = formatted.khTitle;
+      updates.nameEn = formatted.enTitle;
+    }
+
+    const updatedShifts = shifts.map((shift, idx) =>
+      idx === shiftIdx ? { ...shift, ...updates } : shift
+    );
+
+    const extraUpdates: Partial<WeddingEvent> = {};
+    if (shiftIdx === 0 && newDate) {
+      extraUpdates.startTime = `${newDate}T07:00:00.000Z`;
+    }
+    if (formatted && (shiftIdx === 1 || (shifts.length === 1 && shiftIdx === 0))) {
+      extraUpdates.config = {
+        ...formData.config,
+        invitation_kh: {
+          ...formData.config.invitation_kh,
+          date_time: formatted.summaryKh,
+        },
+        invitation_en: {
+          ...formData.config.invitation_en,
+          date_time: formatted.summaryEn,
+        },
+      };
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      ...extraUpdates,
+      schedules: [{ ...prev.schedules[0], shifts: updatedShifts }],
+    }));
+  };
+
+  const handleApplyCalendarTitles = (shiftIdx: number) => {
+    const currentShift = shifts[shiftIdx];
+    if (!currentShift?.date) return;
+    const formatted = generateDayTitlesFromDate(currentShift.date, shiftIdx);
+    if (!formatted) return;
+    handleUpdateShiftInfo(shiftIdx, {
+      name: formatted.khTitle,
+      nameEn: formatted.enTitle,
+    });
+  };
+
+  const handleSetTwoDaysPreset = () => {
+    const twoDayShifts: Shift[] = [
+      {
+        id: 'cmgstpkqn0005kz04vai61xd7',
+        name: 'ថ្ងៃទី១ ៖ ថ្ងៃសៅរ៍ ទី​០៦ ខែមករា (ចូលរោង & សូត្រមន្ត)',
+        nameEn: 'Day 1: Saturday, January 06 (Blessing & Hair-Cutting)',
+        date: '2026-01-06',
+        timeLine: [
+          {
+            id: 'time-d1-1',
+            time: '02:00 PM',
+            name: 'ជួបជុំភ្ញៀវកិត្តិយស និងញាតិមិត្តជិតឆ្ងាយ (ពិធីចូលរោងជ័យ)',
+            nameEn: 'Guest & Family Gathering (Entering the Blessing Hall)',
+            icon: 'users',
+          },
+          {
+            id: 'time-d1-2',
+            time: '03:30 PM',
+            name: 'ពិធីសូត្រមន្តចម្រើនព្រះបរិត្ត សុំសិរីសួស្តី',
+            nameEn: 'Monks’ Blessing Chanting Ceremony',
+            icon: 'flame',
+          },
+          {
+            id: 'time-d1-3',
+            time: '04:30 PM',
+            name: 'ពិធីកាត់សក់ បង្កក់សិរី សិរីសួស្តីជ័យមង្គល',
+            nameEn: 'Traditional Hair-Cutting Cleansing Ceremony',
+            icon: 'scissors',
+          },
+          {
+            id: 'time-d1-4',
+            time: '06:00 PM',
+            name: 'ពិសារភោជនាហារពេលល្ងាច ជួបជុំបងប្អូន (ថ្ងៃទី១)',
+            nameEn: 'Day 1 Evening Dinner & Family Gathering',
+            icon: 'utensils',
+          },
+        ],
+      },
+      {
+        id: 'shift-day-2',
+        name: 'ថ្ងៃទី២ ៖ ថ្ងៃអាទិត្យ ទី០៧ ខែមករា (ហែជំនូន & ពិសាភោជនាហារ)',
+        nameEn: 'Day 2: Sunday, January 07 (Procession & Grand Banquet)',
+        date: '2026-01-07',
+        timeLine: [
+          {
+            id: 'time-d2-1',
+            time: '07:00 AM',
+            name: 'ពិធីហែជំនូន ចូលរោងជ័យ និងជូនកំណត់ជើងការ',
+            nameEn: 'Groom’s Grand Procession & Dowry Offering',
+            icon: 'gift',
+          },
+          {
+            id: 'time-d2-2',
+            time: '08:30 AM',
+            name: 'ពិធីរៀបរាប់ផ្លែឈើ និងសុំស្រីអនមកសំពះផ្ទឹម',
+            nameEn: 'Fruit Presentation & Knot-Tying Ceremony',
+            icon: 'heart',
+          },
+          {
+            id: 'time-d2-3',
+            time: '10:00 AM',
+            name: 'ពិធីបង្វិលពពិល បង្កក់សិរី និងចងដៃប្រសិទ្ធពរជ័យ',
+            nameEn: 'Spinning Lanterns Blessing & Hand-Tying Ceremony',
+            icon: 'crown',
+          },
+          {
+            id: 'time-d2-4',
+            time: '12:00 PM',
+            name: 'ពិសារភោជនាហារពេលថ្ងៃត្រង់',
+            nameEn: 'Luncheon',
+            icon: 'utensils',
+          },
+          {
+            id: 'time-d2-5',
+            time: '05:00 PM',
+            name: 'ពិធីពិសារភោជនាហារពេលល្ងាច និងរាំកម្សាន្ត (Wedding Banquet Reception)',
+            nameEn: 'Grand Wedding Banquet Reception & Dance',
+            icon: 'wine',
+          },
+        ],
+      },
+    ];
+
+    setFormData(prev => ({
+      ...prev,
+      schedules: [{ ...prev.schedules[0], shifts: twoDayShifts }],
+      config: {
+        ...prev.config,
+        invitation_kh: {
+          ...prev.config.invitation_kh,
+          date_time: 'ថ្ងៃសៅរ៍ ទី០៦ និង ថ្ងៃអាទិត្យ ទី០៧ ខែមករា ឆ្នាំ២០២៦',
+        },
+        invitation_en: {
+          ...prev.config.invitation_en,
+          date_time: 'Saturday 06 & Sunday 07 January 2026',
+        },
+      },
+    }));
+    setActiveShiftIndex(0);
+  };
+
+  const handleSyncDateFromShift = (shiftIdx: number) => {
+    const shift = shifts[shiftIdx];
+    if (!shift?.date) return;
+    const formatted = generateDayTitlesFromDate(shift.date, shiftIdx);
+    if (!formatted) return;
+
+    setFormData(prev => ({
+      ...prev,
+      startTime: `${shift.date}T17:00:00.000Z`,
+      config: {
+        ...prev.config,
+        invitation_kh: {
+          ...prev.config.invitation_kh,
+          date_time: formatted.summaryKh,
+        },
+        invitation_en: {
+          ...prev.config.invitation_en,
+          date_time: formatted.summaryEn,
+        },
+      },
+    }));
+    setSyncFeedback(`បានទាញយកទិន្នន័យពីរបៀបវារៈ ៖ ${formatted.summaryKh}`);
+    setTimeout(() => setSyncFeedback(null), 3500);
+  };
+
+  const handleSyncBothDaysDate = () => {
+    if (shifts.length < 2) return;
+    const s1 = shifts[0];
+    const s2 = shifts[1];
+    const f1 = s1?.date ? generateDayTitlesFromDate(s1.date, 0) : null;
+    const f2 = s2?.date ? generateDayTitlesFromDate(s2.date, 1) : null;
+
+    if (f1 && f2) {
+      const khStr = `${f1.khmerDay} ទី${toKhmerNumber(f1.dayNumber)} និង ${f2.khmerDay} ទី${toKhmerNumber(f2.dayNumber)} ខែ${f2.khmerMonth} ឆ្នាំ${toKhmerNumber(f2.year)}`;
+      const enStr = `${f1.enDay}, ${f1.enMonth} ${f1.dayNumber} & ${f2.enDay}, ${f2.enMonth} ${f2.dayNumber}, ${f2.year}`;
+      setFormData(prev => ({
+        ...prev,
+        config: {
+          ...prev.config,
+          invitation_kh: {
+            ...prev.config.invitation_kh,
+            date_time: khStr,
+          },
+          invitation_en: {
+            ...prev.config.invitation_en,
+            date_time: enStr,
+          },
+        },
+      }));
+      setSyncFeedback(`បានទាញយកកាលបរិច្ឆេទទាំង ២ ថ្ងៃពីរបៀបវារៈ ៖ ${khStr}`);
+      setTimeout(() => setSyncFeedback(null), 3500);
+    }
+  };
+
+  const handleAddDay = () => {
+    if (shifts.length >= 2) return;
+    const newDayNum = shifts.length + 1;
+    const newShift: Shift = {
+      id: `shift-day-${Date.now()}`,
+      name: `ថ្ងៃទី${newDayNum} ៖ ថ្ងៃអាទិត្យ ទី០៧ ខែមករា (ហែជំនូន & ពិសាភោជនាហារ)`,
+      nameEn: `Day ${newDayNum}: Sunday, January 07 (Procession & Banquet)`,
+      date: '2026-01-07',
+      timeLine: [
+        {
+          id: `time-${Date.now()}-1`,
+          time: '07:00 AM',
+          name: 'ពិធីហែជំនូន ចូលរោងជ័យ',
+          nameEn: 'Groom’s Grand Procession',
+          icon: 'gift',
+        },
+        {
+          id: `time-${Date.now()}-2`,
+          time: '08:30 AM',
+          name: 'ពិធីរៀបរាប់ផ្លែឈើ និងសំពះផ្ទឹម',
+          nameEn: 'Fruit Presentation & Knot-Tying Ceremony',
+          icon: 'heart',
+        },
+        {
+          id: `time-${Date.now()}-3`,
+          time: '05:00 PM',
+          name: 'ពិធីពិសារភោជនាហារពេលល្ងាច និងរាំកម្សាន្ត',
+          nameEn: 'Grand Wedding Banquet Reception',
+          icon: 'wine',
+        },
+      ],
+    };
+    const updatedShifts = [...shifts, newShift];
+    setFormData(prev => ({
+      ...prev,
+      schedules: [{ ...prev.schedules[0], shifts: updatedShifts }],
+      config: {
+        ...prev.config,
+        invitation_kh: {
+          ...prev.config.invitation_kh,
+          date_time: 'ថ្ងៃសៅរ៍ ទី០៦ និង ថ្ងៃអាទិត្យ ទី០៧ ខែមករា ឆ្នាំ២០២៦',
+        },
+        invitation_en: {
+          ...prev.config.invitation_en,
+          date_time: 'Saturday 06 & Sunday 07 January 2026',
+        },
+      },
+    }));
+    setActiveShiftIndex(updatedShifts.length - 1);
+  };
+
+  const handleRemoveDay = (shiftIdx: number) => {
+    if (shifts.length <= 1) return;
+    const updatedShifts = shifts.filter((_, idx) => idx !== shiftIdx);
+    
+    // Automatically adjust invitation date text if reduced to 1 day
+    let updatedConfig = { ...formData.config };
+    if (updatedShifts.length === 1) {
+      if (shiftIdx === 0) {
+        // Day 1 was deleted, only Day 2 remains
+        updatedConfig = {
+          ...updatedConfig,
+          invitation_kh: {
+            ...updatedConfig.invitation_kh,
+            date_time: 'ថ្ងៃអាទិត្យ ទី០៧ ខែមករា ឆ្នាំ២០២៦',
+          },
+          invitation_en: {
+            ...updatedConfig.invitation_en,
+            date_time: 'Sunday, January 07, 2026',
+          },
+        };
+      } else {
+        // Day 2 was deleted, only Day 1 remains
+        updatedConfig = {
+          ...updatedConfig,
+          invitation_kh: {
+            ...updatedConfig.invitation_kh,
+            date_time: 'ថ្ងៃសៅរ៍ ទី០៦ ខែមករា ឆ្នាំ២០២៦',
+          },
+          invitation_en: {
+            ...updatedConfig.invitation_en,
+            date_time: 'Saturday, January 06, 2026',
+          },
+        };
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      schedules: [{ ...prev.schedules[0], shifts: updatedShifts }],
+      config: updatedConfig,
+    }));
+    setActiveShiftIndex(0);
+  };
+
+  const handleAddTimelineItem = () => {
+    const newItem: TimelineItem = {
+      id: `custom-time-${Date.now()}`,
+      time: '06:00 PM',
+      name: 'កម្មវិធីថ្មី (New Ceremony)',
+      nameEn: 'New Ceremony Event',
+      icon: 'sparkles',
+    };
+    const updatedTimeline = [...timelineItems, newItem];
+    const updatedShifts = shifts.map((shift, idx) => 
+      idx === activeShiftIndex ? { ...shift, timeLine: updatedTimeline } : shift
+    );
+    setFormData(prev => ({
+      ...prev,
+      schedules: [{ ...prev.schedules[0], shifts: updatedShifts }],
+    }));
+  };
+
+  const handleUpdateTimelineItem = (idOrIndex: string | number, updates: Partial<TimelineItem>) => {
+    const updatedTimeline = timelineItems.map((item, index) =>
+      (item.id && item.id === idOrIndex) || index === idOrIndex || String(index) === String(idOrIndex)
+        ? { ...item, ...updates }
+        : item
+    );
+    const updatedShifts = shifts.map((shift, idx) => 
+      idx === activeShiftIndex ? { ...shift, timeLine: updatedTimeline } : shift
+    );
+    setFormData(prev => ({
+      ...prev,
+      schedules: [{ ...prev.schedules[0], shifts: updatedShifts }],
+    }));
+  };
+
+  const handleDeleteTimelineItem = (target: string | number) => {
+    const updatedTimeline = timelineItems.filter((item, index) =>
+      typeof target === 'number'
+        ? index !== target
+        : (item.id !== target && String(index) !== target)
+    );
+    const updatedShifts = shifts.map((shift, idx) => 
+      idx === activeShiftIndex ? { ...shift, timeLine: updatedTimeline } : shift
+    );
+    setFormData(prev => ({
+      ...prev,
+      schedules: [{ ...prev.schedules[0], shifts: updatedShifts }],
+    }));
+  };
+
+  // Helper to load template information directly from the selected template type
+  const loadPresetWithSavedSettings = (p: typeof EVENT_PRESETS[0]) => {
+    // 1. Check if user previously saved custom edits for this specific template
+    try {
+      const stored = localStorage.getItem(`wedding_template_saved_${p.sampleEvent.id}`) ||
+                     localStorage.getItem(`wedding_template_type_${p.type}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setFormData(parsed);
+        setSyncFeedback(`បានទាញយកទិន្នន័យពីប្រភេទគំរូ ${p.titleKh}!`);
+        setTimeout(() => setSyncFeedback(null), 3000);
+        return;
+      }
+    } catch (e) {}
+
+    // 2. Load complete information directly from this type of template
+    const templateSample = JSON.parse(JSON.stringify(p.sampleEvent)) as WeddingEvent;
+
+    const updatedEvent: WeddingEvent = {
+      ...templateSample,
+      id: p.sampleEvent.id,
+      eventType: p.type,
+      singlePerson: p.sampleEvent.singlePerson ?? (p.type === 'birthday'),
+      name: p.sampleEvent.name,
+      slug: p.sampleEvent.slug || p.sampleEvent.name.toLowerCase().replace(/\s+/g, '-'),
+      groom: p.sampleEvent.groom,
+      bride: p.sampleEvent.bride,
+      groomEn: p.sampleEvent.groomEn,
+      brideEn: p.sampleEvent.brideEn,
+      location: p.sampleEvent.location,
+      locationEn: p.sampleEvent.locationEn,
+      eating_time: p.sampleEvent.eating_time,
+      startTime: p.sampleEvent.startTime,
+      image: p.coverImage || p.sampleEvent.image,
+      schedules: templateSample.schedules || [],
+      config: {
+        ...templateSample.config,
+        cover_background: p.coverImage || templateSample.config?.cover_background,
+        // Preserve user's existing customized bank/KHQR credentials if already present
+        bankInfo: formData.config.bankInfo?.accountNumber || formData.config.bankInfo?.accountName
+          ? formData.config.bankInfo
+          : templateSample.config?.bankInfo,
+        qr_code: formData.config.qr_code || templateSample.config?.qr_code,
+        qr_code_riel: formData.config.qr_code_riel || templateSample.config?.qr_code_riel,
+      },
+    };
+
+    setFormData(updatedEvent);
+    localStorage.setItem('wedding_custom_event_data', JSON.stringify(updatedEvent));
+    localStorage.setItem(`wedding_template_type_${p.type}`, JSON.stringify(updatedEvent));
+    setSyncFeedback(`ព័ត៌មានទាំងអស់ត្រូវបានទាញយកពីប្រភេទគំរូ ${p.titleKh} (All information retrieved from template)!`);
+    setTimeout(() => setSyncFeedback(null), 3500);
+  };
+
+  const fetchSavedInformation = async (targetId?: string, targetType?: string) => {
+    const idToFetch = targetId || formData.id || 'cmgrawhnk0003le0434762j7n';
+    const typeToFetch = targetType || currentTemplateType;
+    setIsFetchingSavedInfo(true);
+    try {
+      // 1. Check server API by ID first
+      let res = await fetch(`/api/event?id=${encodeURIComponent(idToFetch)}`);
+      let data = res.ok ? await res.json() : null;
+
+      // 2. If not found by ID, query by template type
+      if ((!data || !data.event) && typeToFetch) {
+        res = await fetch(`/api/event?type=${encodeURIComponent(typeToFetch)}`);
+        data = res.ok ? await res.json() : null;
+      }
+
+      if (data?.success && data.event) {
+        setFormData(data.event);
+        setSavedRetrievedInfo(data.event);
+        const timeStr = new Date().toLocaleTimeString('km-KH');
+        setLastRetrievedTime(timeStr);
+        setSyncFeedback(`បានទាញយកទិន្នន័យពី Server ជោគជ័យ! (${timeStr})`);
+        setTimeout(() => setSyncFeedback(null), 3000);
+        return data.event;
+      }
+
+      // 3. Fallback to localStorage
+      const localSpecific = localStorage.getItem(`wedding_template_saved_${idToFetch}`) ||
+                            localStorage.getItem(`wedding_template_type_${typeToFetch}`) ||
+                            localStorage.getItem('wedding_custom_event_data');
+      if (localSpecific) {
+        const parsed = JSON.parse(localSpecific);
+        setFormData(parsed);
+        setSavedRetrievedInfo(parsed);
+        const timeStr = new Date().toLocaleTimeString('km-KH');
+        setLastRetrievedTime(timeStr);
+        setSyncFeedback(`បានទាញយកទិន្នន័យពី Storage ជោគជ័យ! (${timeStr})`);
+        setTimeout(() => setSyncFeedback(null), 3000);
+        return parsed;
+      }
+    } catch (err) {
+      console.warn('Error fetching saved info:', err);
+    } finally {
+      setIsFetchingSavedInfo(false);
+    }
+    return null;
+  };
+
+  const handleSaveToTemplateAndType = async (applyToAllTypes = false) => {
+    try {
+      setIsSaving(true);
+      const timestamp = new Date().toISOString();
+      const updated: WeddingEvent = {
+        ...formData,
+        eventType: currentTemplateType,
+        updatedAt: timestamp,
+      };
+
+      // 1. Send to parent onSave (refreshEnvelope = false to keep user in context)
+      await onSave(updated, false);
+
+      // 2. Cache in Website Local Storage (instant client cache)
+      try {
+        localStorage.setItem(`wedding_template_saved_${updated.id}`, JSON.stringify(updated));
+        localStorage.setItem(`wedding_template_type_${currentTemplateType}`, JSON.stringify(updated));
+        localStorage.setItem('wedding_last_active_template_id', updated.id);
+        localStorage.setItem('wedding_last_template_type', currentTemplateType);
+        localStorage.setItem('wedding_custom_event_data', JSON.stringify(updated));
+        if (updated.config) {
+          localStorage.setItem('wedding_last_custom_design_config', JSON.stringify(updated.config));
+        }
+
+        if (applyToAllTypes) {
+          const allTypes: Array<'wedding' | 'engagement' | 'housewarming' | 'birthday'> = [
+            'wedding',
+            'engagement',
+            'housewarming',
+            'birthday',
+          ];
+          for (const t of allTypes) {
+            localStorage.setItem(
+              `wedding_template_type_${t}`,
+              JSON.stringify({
+                ...updated,
+                eventType: t,
+              })
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('LocalStorage error:', e);
+      }
+
+      // 3. Save to Firebase Firestore Database
+      try {
+        await saveEventToFirebase(updated);
+      } catch (fbErr) {
+        console.warn('Firebase save warning:', fbErr);
+      }
+
+      // 4. Persist to Server API with ID and Type
+      try {
+        const serverRes = await fetch('/api/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated),
+        });
+        if (serverRes.ok) {
+          const resData = await serverRes.json();
+          if (resData?.event) {
+            setFormData(resData.event);
+            setSavedRetrievedInfo(resData.event);
+          }
+        }
+      } catch (e) {
+        console.warn('Server API sync error:', e);
+      }
+
+      // 5. Verify & retrieve saved info
+      const timeStr = new Date().toLocaleTimeString('km-KH');
+      setLastRetrievedTime(timeStr);
+      setSavedRetrievedInfo(updated);
+      setShowSavedToast(true);
+      setSyncFeedback(
+        `បានរក្សាទុកទៅកាន់ Server, Database និង Website (${updated.name || currentTemplatePreset.titleKh}) រួចរាល់!`
+      );
+    } catch (err) {
+      console.error('Save to template failed:', err);
+      alert('រក្សាទុកមិនបានជោគជ័យ សូមព្យាយាមម្តងទៀត / Failed to save to template, please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    await handleSaveToTemplateAndType(false);
+  };
+
+  const handleResetDefaults = () => {
+    if (confirm('តើអ្នកពិតជាចង់កំណត់ទិន្នន័យឡើងវិញដើមឬទេ? / Reset all information to default?')) {
+      onReset();
+      onClose();
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+        >
+          <motion.div
+            initial={{ scale: 0.95, y: 15 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.95, y: 15 }}
+            className={`relative w-full max-w-3xl lg:max-w-4xl border rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden ${
+              theme === 'light'
+                ? 'bg-[#fdfbf7] border-amber-300 text-neutral-900 shadow-amber-900/10'
+                : theme === 'gray'
+                ? 'bg-[#1b1e25] border-slate-700/60 text-slate-100'
+                : 'bg-black border-amber-500/40 text-white'
+            }`}
+          >
+            {/* Header */}
+            <div className={`flex items-center justify-between px-5 py-4 border-b ${
+              theme === 'light'
+                ? 'border-amber-200 bg-amber-100/50'
+                : theme === 'gray'
+                ? 'border-slate-800 bg-[#16181f]'
+                : 'border-amber-500/30 bg-black'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shadow-md ${
+                  theme === 'light'
+                    ? 'bg-amber-200 text-amber-950 border-amber-300'
+                    : 'bg-gradient-to-br from-amber-400/30 to-amber-600/30 text-amber-300 border-amber-400/40'
+                }`}>
+                  <LayoutTemplate className={`w-5 h-5 ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'}`} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className={`text-sm sm:text-base font-moul ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      គម្រូធៀប
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold font-mono ${
+                      theme === 'light'
+                        ? 'bg-amber-200/80 border-amber-300 text-amber-950'
+                        : 'bg-amber-400/20 border-amber-400/30 text-amber-300'
+                    }`}>
+                      #template
+                    </span>
+                  </div>
+                  <p className={`text-[11px] font-khmer flex items-center gap-1.5 mt-0.5 ${
+                    theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'
+                  }`}>
+                    <span>Plan Essential Event & Template Editor</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {onToggleLanguage && (
+                  <LanguageToggle currentLanguage={language} onToggle={onToggleLanguage} theme={theme} />
+                )}
+                {onChangeTheme && (
+                  <ThemeToggle currentTheme={theme || 'dark'} onChangeTheme={onChangeTheme} language={language} />
+                )}
+                <button
+                  type="button"
+                  onClick={handleResetDefaults}
+                  className={`p-2 rounded-lg transition-all text-xs flex items-center gap-1 font-khmer ${
+                    theme === 'light'
+                      ? 'text-neutral-600 hover:text-amber-950 hover:bg-amber-200/50'
+                      : 'text-neutral-400 hover:text-amber-300 hover:bg-white/5'
+                  }`}
+                  title="កំណត់ឡើងវិញ / Reset"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="hidden sm:inline">ដើម</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className={`p-2 rounded-lg transition-colors ${
+                    theme === 'light'
+                      ? 'text-neutral-600 hover:text-neutral-900 hover:bg-amber-200/50'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Navigation Tabs Bar with Slide Left/Right */}
+            <div
+              id="navigation-tabs-bar"
+              className={`relative flex items-center border-b shrink-0 select-none ${
+                theme === 'light'
+                  ? 'border-amber-200 bg-amber-50/70'
+                  : theme === 'gray'
+                  ? 'border-slate-800 bg-[#13151a]'
+                  : 'border-amber-500/20 bg-black/40'
+              }`}
+            >
+              {/* Slide Left Button */}
+              <button
+                type="button"
+                onClick={() => handleScrollTabs('left')}
+                className={`h-full px-2 py-2.5 transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+                  canScrollLeft
+                    ? 'opacity-100 hover:scale-105 active:scale-95'
+                    : 'opacity-30 cursor-default'
+                } ${
+                  theme === 'light'
+                    ? 'hover:bg-amber-200/60 text-amber-950 border-r border-amber-200/70'
+                    : 'hover:bg-amber-400/20 text-amber-300 border-r border-amber-500/20'
+                }`}
+                title="រុញផ្ទាំងទៅឆ្វេង (Slide Tabs Left)"
+                aria-label="Slide tabs left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Scrollable Tabs Track */}
+              <div
+                ref={tabsNavRef}
+                className="flex-1 flex items-center overflow-x-auto no-scrollbar scroll-smooth px-1.5 py-2 gap-1.5"
+              >
+                <button
+                  id="presets-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('presets')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'presets'
+                      ? 'bg-amber-400 text-amber-950 font-bold shadow'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/40'
+                      : 'text-neutral-300 hover:text-amber-200'
+                  }`}
+                >
+                  <LayoutTemplate className="w-3.5 h-3.5" />
+                  <span>គម្រូធៀប</span>
+                </button>
+
+                <button
+                  id="design-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('design')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'design'
+                      ? 'bg-amber-400 text-amber-950 font-bold shadow'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/40'
+                      : 'text-neutral-300 hover:text-amber-200'
+                  }`}
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  <span>ការរចនា</span>
+                </button>
+
+                <button
+                  id="couple-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('couple')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'couple'
+                      ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-amber-950 font-bold shadow-md ring-2 ring-amber-400/40'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/50'
+                      : 'text-neutral-300 hover:text-amber-200 hover:bg-amber-400/10'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 shrink-0" />
+                  <span>{categoryCoupleTabLabel}</span>
+                  {formData.groom && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                  )}
+                </button>
+
+                <button
+                  id="photos-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('photos')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'photos'
+                      ? 'bg-amber-400 text-amber-950 font-bold shadow'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/40'
+                      : 'text-neutral-300 hover:text-amber-200'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>{categoryGalleryTabLabel}</span>
+                </button>
+
+                <button
+                  id="schedule-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('schedule')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'schedule'
+                      ? 'bg-amber-400 text-amber-950 font-bold shadow'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/40'
+                      : 'text-neutral-300 hover:text-amber-200'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>របៀបវារៈ ({timelineItems.length})</span>
+                </button>
+
+                <button
+                  id="messages-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('messages')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'messages'
+                      ? 'bg-amber-400 text-amber-950 font-bold shadow'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/40'
+                      : 'text-neutral-300 hover:text-amber-200'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>សារអញ្ជើញ</span>
+                </button>
+
+                <button
+                  id="khqr-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('khqr')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'khqr'
+                      ? 'bg-amber-400 text-amber-950 font-bold shadow'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/40'
+                      : 'text-neutral-300 hover:text-amber-200'
+                  }`}
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>ចងដៃ KHQR</span>
+                </button>
+
+                <button
+                  id="music-tab-btn"
+                  type="button"
+                  onClick={() => handleSelectTab('music')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-khmer flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                    activeTab === 'music'
+                      ? 'bg-amber-400 text-amber-950 font-bold shadow'
+                      : theme === 'light'
+                      ? 'text-neutral-700 hover:text-amber-950 hover:bg-amber-200/40'
+                      : 'text-neutral-300 hover:text-amber-200'
+                  }`}
+                >
+                  <Music className="w-3.5 h-3.5" />
+                  <span>តន្ត្រី</span>
+                </button>
+              </div>
+
+              {/* Slide Right Button */}
+              <button
+                type="button"
+                onClick={() => handleScrollTabs('right')}
+                className={`h-full px-2 py-2.5 transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+                  canScrollRight
+                    ? 'opacity-100 hover:scale-105 active:scale-95'
+                    : 'opacity-30 cursor-default'
+                } ${
+                  theme === 'light'
+                    ? 'hover:bg-amber-200/60 text-amber-950 border-l border-amber-200/70'
+                    : 'hover:bg-amber-400/20 text-amber-300 border-l border-amber-500/20'
+                }`}
+                title="រុញផ្ទាំងទៅស្តាំ (Slide Tabs Right)"
+                aria-label="Slide tabs right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Type Preset Loader Bar (with Slide Left/Right) */}
+            <div className={`px-3 py-2 border-b flex items-center justify-between gap-2 shrink-0 text-xs font-khmer select-none ${
+              theme === 'light' ? 'bg-amber-100/70 border-amber-200' : 'bg-black/40 border-white/10'
+            }`}>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span className={`font-bold text-[11px] sm:text-xs ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                  ទាញយកព័ត៌មានតាមប្រភេទធៀប៖
+                </span>
+              </div>
+              <div className="flex items-center gap-1 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => handleScrollPresets('left')}
+                  className={`p-1 rounded-md transition-all shrink-0 cursor-pointer active:scale-95 ${
+                    theme === 'light'
+                      ? 'hover:bg-amber-200/70 text-amber-950 border border-amber-300/60'
+                      : 'hover:bg-white/10 text-amber-300 border border-amber-500/20'
+                  }`}
+                  title="រុញគម្រូទៅឆ្វេង (Slide Presets Left)"
+                  aria-label="Slide presets left"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                <div
+                  ref={presetBarRef}
+                  className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth"
+                >
+                  {EVENT_PRESETS.map((p) => {
+                    const isCur = currentTemplatePreset.id === p.id || formData.id === p.sampleEvent.id;
+                    return (
+                      <button
+                        key={`quick-preset-btn-${p.id}`}
+                        type="button"
+                        onClick={() => loadPresetWithSavedSettings(p)}
+                        className={`px-3 py-1.5 rounded-lg border font-bold text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                          isCur
+                            ? 'bg-amber-400 text-amber-950 border-amber-300 shadow-sm ring-1 ring-amber-400/40'
+                            : theme === 'light'
+                            ? 'bg-white border-amber-300/80 text-amber-950 hover:bg-amber-100/70 hover:border-amber-400'
+                            : 'bg-black/40 border-amber-500/30 text-amber-200 hover:bg-amber-400/20 hover:text-white'
+                        }`}
+                      >
+                        {p.id === 'preset-canva-botanical-wedding' ? (
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        ) : p.type === 'wedding' ? (
+                          <Heart className="w-3.5 h-3.5 text-rose-500 shrink-0 fill-rose-500/20" />
+                        ) : p.type === 'engagement' ? (
+                          <Sparkles className="w-3.5 h-3.5 text-pink-500 shrink-0" />
+                        ) : p.type === 'housewarming' ? (
+                          <Home className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        ) : p.type === 'birthday' ? (
+                          <Cake className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                        ) : (
+                          <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        )}
+                        <span>{p.badgeKh || p.titleKh}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleScrollPresets('right')}
+                  className={`p-1 rounded-md transition-all shrink-0 cursor-pointer active:scale-95 ${
+                    theme === 'light'
+                      ? 'hover:bg-amber-200/70 text-amber-950 border border-amber-300/60'
+                      : 'hover:bg-white/10 text-amber-300 border border-amber-500/20'
+                  }`}
+                  title="រុញគម្រូទៅស្តាំ (Slide Presets Right)"
+                  aria-label="Slide presets right"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Tab Content */}
+            <div
+              ref={contentContainerRef}
+              onScroll={(e) => {
+                scrollPosRef.current = e.currentTarget.scrollTop;
+              }}
+              className="flex-1 overflow-y-auto p-5 space-y-5 text-left text-sm"
+            >
+              {/* TAB -1: EVENT TYPE PRESETS */}
+              {activeTab === 'presets' && (
+                <div className="space-y-5">
+                  {/* EVENT TYPE PRESETS LIST */}
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className={`text-sm font-bold font-khmer ${
+                            theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                          }`}>
+                            ជ្រើសរើសប្រភេទធៀបគំរូ (Event Type Presets)
+                          </h4>
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400/20 to-amber-500/30 border border-amber-400 text-amber-900 dark:text-amber-200 text-xs font-khmer font-bold shadow-xs">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>ប្រភេទដែលបានជ្រើស (តែ ១ គត់) ៖</span>
+                            <span className="font-extrabold text-amber-700 dark:text-amber-300">
+                              {currentTemplatePreset.titleKh} ({templateTypeLabels[currentTemplateType]?.kh || 'អាពាហ៍ពិពាហ៍'})
+                            </span>
+                          </div>
+                        </div>
+                        <p className={`text-xs font-khmer mt-1 flex items-center gap-1.5 ${
+                          theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'
+                        }`}>
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span>អ្នកអាចជ្រើសរើសបានតែ ១ ប្រភេទប៉ុណ្ណោះដើម្បីប្រើប្រាស់ (Single Category Only)៖ អាពាហ៍ពិពាហ៍, ភ្ជាប់ពាក្យ, ឡើងគេហដ្ឋានថ្មី ឬ ខួបកំណើត។</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Single-Selection Category Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5" role="radiogroup" aria-label="Template Category Selection">
+                      {EVENT_PRESETS.map((preset, presetIdx) => {
+                        // Accurately matches the active template preset
+                        const isSelected = currentTemplatePreset.id === preset.id;
+                        const shiftCount = preset.sampleEvent.schedules?.[0]?.shifts?.length || 1;
+                        const totalEvents = preset.sampleEvent.schedules?.[0]?.shifts?.reduce(
+                          (acc, s) => acc + (s.timeLine?.length || 0), 0
+                        ) || 0;
+
+                        return (
+                          <div
+                            key={`editor-preset-${preset.id}-${presetIdx}`}
+                            role="radio"
+                            aria-checked={isSelected}
+                            tabIndex={0}
+                            onClick={() => loadPresetWithSavedSettings(preset)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                loadPresetWithSavedSettings(preset);
+                              }
+                            }}
+                            className={`group relative p-4 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer select-none text-left ${
+                              isSelected
+                                ? 'border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-xl ' + (theme === 'light' ? 'bg-gradient-to-b from-amber-100/90 via-amber-50/70 to-white' : 'bg-gradient-to-b from-amber-950/45 via-black/80 to-black')
+                                : theme === 'light'
+                                ? 'bg-white border-amber-200/90 hover:border-amber-400 hover:shadow-md hover:bg-amber-50/40'
+                                : 'bg-black/40 border-white/10 hover:border-amber-400/40 hover:shadow-md hover:bg-white/5'
+                            }`}
+                          >
+                            {/* Selected Badge Indicator Ribbon */}
+                            {isSelected && (
+                              <div className="absolute -top-2.5 right-4 z-10">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-300 text-amber-950 text-[10px] font-bold font-khmer shadow-md border border-amber-300">
+                                  <Check className="w-3 h-3 stroke-[3]" />
+                                  <span>បានជ្រើសរើស (Selected Category)</span>
+                                </span>
+                              </div>
+                            )}
+
+                            <div>
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0"
+                                    style={{
+                                      backgroundColor: `${preset.accentColor}25`,
+                                      color: preset.accentColor,
+                                      border: `1px solid ${preset.accentColor}50`,
+                                    }}
+                                  >
+                                    {preset.type === 'wedding' && <Heart className="w-5 h-5" />}
+                                    {preset.type === 'engagement' && <Sparkles className="w-5 h-5" />}
+                                    {preset.type === 'housewarming' && <Home className="w-5 h-5" />}
+                                    {preset.type === 'birthday' && <Cake className="w-5 h-5" />}
+                                    {preset.type === 'anniversary' && <Crown className="w-5 h-5" />}
+                                  </div>
+                                  <div>
+                                    <h5 className={`font-bold font-khmer text-xs sm:text-sm flex items-center gap-1.5 ${
+                                      isSelected
+                                        ? 'text-amber-950 dark:text-amber-300 font-extrabold'
+                                        : theme === 'light' ? 'text-neutral-900' : 'text-white'
+                                    }`}>
+                                      <span>{preset.titleKh}</span>
+                                    </h5>
+                                    <span className={`text-[10px] font-mono block ${
+                                      theme === 'light' ? 'text-amber-800' : 'text-amber-300/80'
+                                    }`}>
+                                      {preset.titleEn}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Radio Selection Indicator */}
+                                <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                                  <div
+                                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                      isSelected
+                                        ? 'border-amber-500 bg-amber-400 text-amber-950 shadow-xs'
+                                        : 'border-neutral-300 dark:border-neutral-600 group-hover:border-amber-400 bg-transparent'
+                                    }`}
+                                  >
+                                    {isSelected ? (
+                                      <div className="w-2 h-2 rounded-full bg-amber-950" />
+                                    ) : (
+                                      <div className="w-1.5 h-1.5 rounded-full bg-transparent group-hover:bg-amber-400/40" />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <p className={`text-[11px] font-khmer leading-relaxed mb-2.5 ${
+                                isSelected
+                                  ? theme === 'light' ? 'text-neutral-800 font-medium' : 'text-neutral-200'
+                                  : theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'
+                              }`}>
+                                {preset.descriptionKh}
+                              </p>
+
+                              {/* Information Retrieved from this Template Type */}
+                              <div className={`p-2.5 rounded-xl border mb-3 space-y-2 transition-all ${
+                                isSelected
+                                  ? theme === 'light' ? 'bg-amber-50/90 border-amber-300/80 shadow-xs' : 'bg-black/60 border-amber-500/40 shadow-xs'
+                                  : theme === 'light' ? 'bg-neutral-50/90 border-amber-100' : 'bg-black/30 border-white/5'
+                              }`}>
+                                <div className="flex items-center justify-between gap-1 text-[10px] font-khmer pb-1 border-b border-amber-200/50 dark:border-amber-500/20">
+                                  <span className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-amber-500" />
+                                    <span>ព័ត៌មានពីប្រភេទគំរូ (Template Info) ៖</span>
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-400/20 text-amber-800 dark:text-amber-300">
+                                    {preset.badgeKh}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-start gap-2.5">
+                                  {/* Cover thumbnail */}
+                                  <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-amber-400/40 relative shadow-xs">
+                                    <img
+                                      src={preset.coverImage}
+                                      alt={preset.titleKh}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                    <div className="absolute inset-0 bg-black/20" />
+                                  </div>
+
+                                  {/* Details extracted from this template */}
+                                  <div className="min-w-0 flex-1 text-[11px] font-khmer space-y-1">
+                                    {/* Host / Couple from Template */}
+                                    <div className="flex items-center gap-1.5">
+                                      <Users className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                      <div className="min-w-0">
+                                        <p className="font-moul truncate text-amber-800 dark:text-amber-200 text-[11px]">
+                                          {preset.sampleEvent.singlePerson
+                                            ? preset.sampleEvent.groom
+                                            : `${preset.sampleEvent.groom} & ${preset.sampleEvent.bride}`}
+                                        </p>
+                                        <p className="truncate opacity-75 text-[9px] font-sans">
+                                          {preset.sampleEvent.singlePerson
+                                            ? preset.sampleEvent.groomEn
+                                            : `${preset.sampleEvent.groomEn} & ${preset.sampleEvent.brideEn}`}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Location from Template */}
+                                    <div className="flex items-start gap-1.5">
+                                      <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                                      <p className="truncate text-[10px] text-neutral-600 dark:text-neutral-300">
+                                        {preset.sampleEvent.location}
+                                      </p>
+                                    </div>
+
+                                    {/* Schedules & Shifts from Template */}
+                                    <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 dark:text-neutral-400">
+                                      <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                      <span>{shiftCount} វេនកម្មវិធី • {totalEvents} ពិធីប្រពៃណី</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="w-full mt-1.5">
+                              {/* Single Selection Trigger Button */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  loadPresetWithSavedSettings(preset);
+                                }}
+                                className={`w-full py-2 px-3.5 rounded-xl font-bold text-xs font-khmer transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 text-white shadow-emerald-500/20 ring-2 ring-emerald-400/30'
+                                    : 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 hover:from-amber-300 hover:to-amber-200 shadow-amber-500/10 border border-amber-300/60'
+                                }`}
+                              >
+                                {isSelected ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    <span>ព័ត៌មានបានទាញចេញពីគំរូនេះរួចរាល់ (Applied)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>ទាញយកព័ត៌មានពីគំរូនេះ (Get Info from Template)</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 0: DESIGN & THEME SETTINGS */}
+              {activeTab === 'design' && (
+                <div className="space-y-6">
+                  <DesignSettingsSection
+                    config={formData.config}
+                    onUpdateConfig={handleUpdateConfig}
+                    eventImage={formData.image}
+                    onUpdateEventImage={(url) => handleUpdateField('image', url)}
+                    theme={theme}
+                    onSave={handleSaveAll}
+                    isSaving={isSaving}
+                    currentCategory={currentCategory}
+                  >
+                    {/* EDITABLE COVER INFORMATION OF INVITATION (Live Preview placed below header) */}
+                    <CoverInfoEditor
+                      formData={formData}
+                      onUpdateFormData={updates => setFormData(prev => ({ ...prev, ...updates }))}
+                      onUpdateConfig={handleUpdateConfig}
+                      theme={theme}
+                      onSave={handleSaveAll}
+                    />
+                  </DesignSettingsSection>
+                </div>
+              )}
+
+              {/* TAB 1: COUPLE & GENERAL INFO */}
+              {activeTab === 'couple' && (
+                <div className="space-y-4">
+
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className={`block text-xs font-khmer font-bold ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        }`}>
+                          {formData.eventType === 'birthday' ? 'ម្ចាស់ខួប (Khmer Name)' : (formData.singlePerson ? 'ឈ្មោះម្ចាស់កម្មវិធី (Khmer Name)' : 'កូនប្រុសនាម (Khmer Name)')}
+                        </label>
+                        <span className="text-[10px] font-khmer text-amber-500 font-semibold">
+                          បង្ហាញលើ Cover & ធៀប
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={formData.groom}
+                        onChange={e => handleUpdateField('groom', e.target.value)}
+                        placeholder={formData.eventType === 'birthday' ? 'ឧ. លោក កែវ ពិសិដ្ធ...' : 'ឧ. រ៉ូ ម៉ាឡេ...'}
+                        style={{ fontFamily: "'Noto Sans Khmer', sans-serif" }}
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-khmer tracking-wide focus:outline-none transition-all ${
+                          theme === 'light'
+                            ? 'bg-white border-2 border-amber-300 text-neutral-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-400/30 shadow-sm'
+                            : 'bg-black/60 border-2 border-amber-500/40 text-amber-100 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30'
+                        }`}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className={`block text-xs font-khmer font-bold ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        }`}>
+                          {formData.eventType === 'birthday' ? 'Birthday Star / Host (English)' : (formData.singlePerson ? 'Host Name (English)' : 'Groom Name (English)')}
+                        </label>
+                        <span className="text-[10px] font-sans text-amber-500 font-semibold">
+                          Title / Short link
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={formData.groomEn || ''}
+                        onChange={e => handleUpdateField('groomEn', e.target.value)}
+                        placeholder={formData.eventType === 'birthday' ? 'e.g. Mr. Keo Piseth...' : 'e.g. Ro Malay...'}
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-sans font-semibold capitalize focus:outline-none transition-all ${
+                          theme === 'light'
+                            ? 'bg-white border-2 border-amber-300 text-neutral-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-400/30 shadow-sm'
+                            : 'bg-black/60 border-2 border-amber-500/40 text-amber-100 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* គម្រប់ខួប (Anniversary / Age Milestone) Section - Only for Birthday Party category */}
+                  {formData.eventType === 'birthday' && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className={`block text-xs font-khmer font-bold ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        }`}>
+                          គម្រប់ខួប
+                        </label>
+                        <span className="text-[10px] font-khmer text-amber-500 font-semibold">
+                          បង្ហាញលើ Cover & ធៀប
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={formData.config?.anniversary_milestone || formData.anniversary_milestone || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setFormData(prev => ({
+                            ...prev,
+                            anniversary_milestone: val,
+                            config: {
+                              ...prev.config,
+                              anniversary_milestone: val,
+                              cover_subtitle_kh: val ? (val.startsWith('រីករាយ') ? val : `រីករាយ${val}`) : prev.config.cover_subtitle_kh,
+                            },
+                          }));
+                        }}
+                        placeholder="ឧ. គម្រប់ខួប ២៥ ឆ្នាំ ឬ គម្រប់ខួប ៦០ ឆ្នាំ (ចម្រើនព្រះជន្ម)..."
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-khmer font-semibold tracking-wide focus:outline-none transition-all ${
+                          theme === 'light'
+                            ? 'bg-white border-2 border-amber-300 text-neutral-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-400/30 shadow-sm'
+                            : 'bg-black/60 border-2 border-amber-500/40 text-amber-100 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30'
+                        }`}
+                      />
+                    </div>
+                  )}
+
+                  {!formData.singlePerson && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className={`block text-xs font-khmer font-bold ${
+                            theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                          }`}>
+                            កូនស្រីនាម (Khmer Name)
+                          </label>
+                          <span className="text-[10px] font-khmer text-amber-500 font-semibold">
+                            បង្ហាញលើ Cover & ធៀប
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={formData.bride}
+                          onChange={e => handleUpdateField('bride', e.target.value)}
+                          placeholder="ឧ. លីន វល្ខ័ក..."
+                          className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-moul tracking-wide focus:outline-none transition-all ${
+                            theme === 'light'
+                              ? 'bg-white border-2 border-amber-300 text-neutral-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-400/30 shadow-sm'
+                              : 'bg-black/60 border-2 border-amber-500/40 text-amber-100 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30'
+                          }`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className={`block text-xs font-khmer font-bold ${
+                            theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                          }`}>
+                            Bride Name (English)
+                          </label>
+                          <span className="text-[10px] font-sans text-amber-500 font-semibold">
+                            Title / Short link
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={formData.brideEn || ''}
+                          onChange={e => handleUpdateField('brideEn', e.target.value)}
+                          placeholder="e.g. Lyn Vorleak..."
+                          className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-sans font-semibold capitalize focus:outline-none transition-all ${
+                            theme === 'light'
+                              ? 'bg-white border-2 border-amber-300 text-neutral-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-400/30 shadow-sm'
+                              : 'bg-black/60 border-2 border-amber-500/40 text-amber-100 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/30'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t ${
+                    theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                  }`}>
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        ចំណងជើងធំ (Main Title)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.config.invitation_kh.main_title}
+                        onChange={e => handleUpdateKhContent('main_title', e.target.value)}
+                        className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        ពាក្យស្វាគមន៍ (Welcome Subtitle)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.config.invitation_kh.subtitle}
+                        onChange={e => handleUpdateKhContent('subtitle', e.target.value)}
+                        className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`space-y-3 pt-2 border-t ${
+                    theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                  }`}>
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        ទីតាំងរៀបចំពិធី (Khmer Venue)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.location}
+                        onChange={e => {
+                          handleUpdateField('location', e.target.value);
+                          handleUpdateKhContent('location', e.target.value);
+                        }}
+                        className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        Venue Location (English)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.locationEn || ''}
+                        onChange={e => handleUpdateField('locationEn', e.target.value)}
+                        className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        តំណភ្ជាប់ Google Maps (Map Link URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={formData.config.map_url}
+                        onChange={e => handleUpdateConfig('map_url', e.target.value)}
+                        className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: PHOTOS & GALLERY */}
+              {activeTab === 'photos' && (
+                <div className="space-y-6">
+                  {/* Default Gallery Layout Style Configuration for Template */}
+                  <div className={`p-4 rounded-xl border space-y-3 ${
+                    theme === 'light'
+                      ? 'bg-amber-50/50 border-amber-200/80 shadow-sm'
+                      : 'bg-black/40 border-amber-500/20'
+                  }`}>
+                    <div>
+                      <h4 className={`text-xs font-bold font-moul ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        ជ្រើសរើសរចនាប័ទ្មបង្ហាញរូបភាពលំនាំដើម (Default Pictures Style for Template)
+                      </h4>
+                      <p className={`text-[11px] font-khmer mt-0.5 ${
+                        theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'
+                      }`}>
+                        ជ្រើសរើសរចនាប័ទ្មដែលត្រូវបង្ហាញជាដំបូងនៅពេលភ្ញៀវចូលមើលកម្រងរូបថត
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                      {[
+                        { id: 'bento', label: 'រចនាប័ទ្ម Bento', icon: Sliders },
+                        { id: 'grid', label: 'ក្រឡាស្មើ (Grid)', icon: LayoutGrid },
+                        { id: 'alternating', label: 'ឆ្លាស់គ្នា (Polaroid)', icon: Layers },
+                        { id: 'carousel', label: 'ស្លាយផ្តេក (Slider)', icon: RefreshCw },
+                        { id: 'masonry', label: 'ជញ្ជាំងសិល្បៈ (Masonry)', icon: Trello },
+                        { id: 'polaroid-grid', label: 'ក្រឡា Polaroid', icon: ImageIcon },
+                        { id: 'circular', label: 'រង្វង់មូល Royal', icon: Disc },
+                        { id: 'filmstrip', label: 'ខ្សែហ្វីលភាពយន្ត', icon: Film },
+                        { id: 'luxury-gold', label: 'រចនាប័ទ្ម Luxury Gold', icon: Sparkles },
+                        { id: 'magazine-vibe', label: 'រចនាប័ទ្ម ទស្សនាវដ្តី', icon: BookOpen },
+                        { id: 'heart-mosaic', label: 'រចនាប័ទ្ម បេះដូង', icon: Heart },
+                        { id: 'parallax-scroll', label: 'រចនាប័ទ្ម Parallax', icon: MousePointer2 },
+                      ].map(option => {
+                        const isSelected = (formData.config.gallery_layout_style || 'bento') === option.id;
+                        const IconComponent = option.icon;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => handleUpdateConfig('gallery_layout_style', option.id as any)}
+                            className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all duration-300 transform active:scale-95 cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/10 border-amber-500 text-amber-400 shadow'
+                                : theme === 'light'
+                                ? 'bg-white border-amber-200 hover:border-amber-400 text-neutral-700'
+                                : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-400'
+                            }`}
+                          >
+                            <IconComponent className={`w-5 h-5 mb-1.5 ${isSelected ? 'text-amber-400 animate-pulse' : 'text-neutral-500'}`} />
+                            <span className="text-[11px] font-khmer font-bold">{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Venue Map Image */}
+                  <div className={`p-4 rounded-xl border ${
+                    theme === 'light'
+                      ? 'bg-amber-50/50 border-amber-200/80 shadow-sm'
+                      : 'bg-black/40 border-amber-500/20'
+                  }`}>
+                    <ImageUploadInput
+                      label="រូបភាពផែនទីទីតាំង (Venue Map Photo)"
+                      value={formData.config.event_location}
+                      onChange={newUrl => handleUpdateConfig('event_location', newUrl)}
+                      aspectRatio="aspect-video"
+                      helpText="បង្ហាញក្នុងផ្នែកទីតាំងកម្មវិធី (Shown in the location section)"
+                      theme={theme}
+                    />
+                  </div>
+
+                  {/* Photo Gallery (Add Picture & Manage) */}
+                  <div className={`p-4 rounded-xl border space-y-4 ${
+                    theme === 'light'
+                      ? 'bg-amber-50/50 border-amber-200/80 shadow-sm'
+                      : 'bg-black/40 border-amber-500/20'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className={`text-xs font-bold font-moul ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        }`}>
+                          {categoryGalleryHeaderLabel} (រូបភាព & វីដេអូខ្លី / Photos & Short Videos)
+                        </h4>
+                        <p className={`text-[11px] font-khmer ${
+                          theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'
+                        }`}>
+                          អ្នកអាចបន្ថែមរូបភាព ឬវីដេអូខ្លី (ប្រព័ន្ធនឹងបង្រួមទំហំស្វ័យប្រវត្តិដើម្បីដំណើរការលឿន)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Gallery Items Grid - Editable Previews */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {galleryPhotos.map((photoUrl, idx) => (
+                        <div
+                          key={`gallery-item-${idx}`}
+                          className={`relative p-3 rounded-2xl border ${
+                            theme === 'light'
+                              ? 'bg-amber-100/30 border-amber-300/80 shadow-sm'
+                              : 'bg-black/40 border-amber-500/30 shadow-md'
+                          } space-y-2.5`}
+                        >
+                          <div className="flex items-center justify-between px-1">
+                            <span className="text-xs font-mono font-bold text-amber-400 bg-black/70 px-2.5 py-0.5 rounded-md border border-amber-400/30">
+                              #{idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveGalleryPhoto(idx)}
+                              className="px-2.5 py-1 rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-khmer font-bold flex items-center gap-1 shadow transition-transform active:scale-95 cursor-pointer"
+                              title={`លុប #${idx + 1}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                              <span>លុប</span>
+                            </button>
+                          </div>
+
+                          <ImageUploadInput
+                            label={`រូបភាព ឬវីដេអូទី #${idx + 1}`}
+                            value={photoUrl}
+                            onChange={newUrl => {
+                              if (!newUrl) {
+                                handleRemoveGalleryPhoto(idx);
+                              } else {
+                                handleUpdateGalleryPhoto(idx, newUrl);
+                              }
+                            }}
+                            aspectRatio="aspect-[4/5]"
+                            helpText="ចុចប្តូររូប/វីដេអូ ឬទាញឯកសារថ្មីមកដាក់ជំនួស"
+                            theme={theme}
+                            allowVideo={true}
+                          />
+
+                          <div className="space-y-1">
+                            <label className={`text-[11px] font-bold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                              ចំណងជើងរូបភាព/វីដេអូទី #{idx + 1} (Caption)
+                            </label>
+                            <input
+                              type="text"
+                              value={(formData.config.gallery_photo_captions || [])[idx] || ''}
+                              onChange={e => handleUpdateGalleryPhotoCaption(idx, e.target.value)}
+                              placeholder={`ឧទាហរណ៍៖ រូបភាព/វីដេអូអនុស្សាវរីយ៍ទី ${idx + 1}`}
+                              className={`w-full px-3 py-2 text-xs font-khmer rounded-lg border transition-all duration-300 focus:outline-none focus:ring-1 ${
+                                theme === 'light'
+                                  ? 'bg-white border-amber-200 text-neutral-800 focus:border-amber-400 focus:ring-amber-400 shadow-sm'
+                                  : 'bg-neutral-950 border-neutral-800 text-neutral-200 focus:border-amber-500 focus:ring-amber-500'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add New Picture Section */}
+                    <div className={`pt-2 border-t ${
+                      theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                    }`}>
+                      <ImageUploadInput
+                        label="➕ បន្ថែមរូបភាព ឬវីដេអូខ្លីថ្មី (អាចជ្រើសរើសម្តងបានច្រើនសន្លឹក / Multiple Upload)"
+                        value=""
+                        onChange={handleAddGalleryPhoto}
+                        onMultipleChange={handleAddGalleryPhotos}
+                        multiple={true}
+                        aspectRatio="aspect-video"
+                        helpText="ជ្រើសរើសរូបភាព ឬវីដេអូខ្លី — អាចជ្រើសរើសម្តងបានច្រើនសន្លឹក (Compress ស្វ័យប្រវត្តិកាត់បន្ថយទំហំ) / Select multiple images or videos at once"
+                        theme={theme}
+                        allowVideo={true}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: WEDDING SCHEDULE / TIMELINE */}
+              {activeTab === 'schedule' && (
+                <div className="space-y-5">
+                  {/* 2-Day Management Card Banner */}
+                  <div className={`p-4 rounded-2xl border space-y-3 shadow-md ${
+                    theme === 'light'
+                      ? 'bg-amber-50/70 border-amber-200/90'
+                      : 'bg-gradient-to-br from-amber-950/50 via-black/60 to-black/80 border-amber-500/30'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                          theme === 'light'
+                            ? 'bg-amber-200 border-amber-300 text-amber-950'
+                            : 'bg-amber-400/20 border-amber-400/40 text-amber-300'
+                        }`}>
+                          <Calendar className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className={`text-xs sm:text-sm font-bold font-moul ${
+                            theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                          }`}>
+                            ការបែងចែកកម្មវិធីមង្គលការ (Wedding Days)
+                          </h4>
+                          <p className={`text-[11px] font-khmer ${
+                            theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'
+                          }`}>
+                            {shifts.length > 1
+                              ? 'កម្មវិធីត្រូវបានបែងចែកជា ២ ថ្ងៃ (Day 1 & Day 2)'
+                              : 'កម្មវិធីមានតែ ១ ថ្ងៃ'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={handleSetTwoDaysPreset}
+                          className={`px-3 py-1.5 rounded-xl border font-khmer text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm ${
+                            theme === 'light'
+                              ? 'bg-amber-200/80 hover:bg-amber-200 text-amber-950 border-amber-300'
+                              : 'bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border-amber-400/40'
+                          }`}
+                          title="កំណត់គំរូកម្មវិធីប្រពៃណីខ្មែរ ២ ថ្ងៃដោយស្វ័យប្រវត្តិ"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>កំណត់គំរូ ២ ថ្ងៃប្រពៃណីខ្មែរ</span>
+                        </button>
+
+                        {shifts.length < 2 && (
+                          <button
+                            type="button"
+                            onClick={handleAddDay}
+                            className="px-3 py-1.5 rounded-xl bg-amber-400 text-amber-950 font-khmer font-bold text-xs hover:bg-amber-300 flex items-center gap-1 transition-all shadow"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>បន្ថែមថ្ងៃទី២</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Day selector tabs */}
+                    <div className={`flex items-center gap-2 pt-2 border-t ${
+                      theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                    }`}>
+                      {shifts.map((shift, idx) => {
+                        const isSelected = activeShiftIndex === idx;
+                        return (
+                          <div
+                            key={`editor-shift-${shift.id || idx}-${idx}`}
+                            className={`flex-1 flex items-center justify-between p-2 sm:px-3 rounded-xl border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-400/60 shadow-md shadow-amber-500/10'
+                                : theme === 'light'
+                                ? 'bg-white border-amber-200 hover:bg-amber-50'
+                                : 'bg-black/40 border-amber-500/20 hover:bg-black/60'
+                            }`}
+                            onClick={() => setActiveShiftIndex(idx)}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`w-5 h-5 rounded-md text-[10px] font-bold font-mono flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-amber-400 text-amber-950'
+                                    : 'bg-amber-950/60 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {idx + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <p
+                                  className={`text-xs font-khmer font-semibold truncate ${
+                                    isSelected
+                                      ? theme === 'light' ? 'text-amber-950 font-bold' : 'text-amber-200'
+                                      : theme === 'light' ? 'text-neutral-700' : 'text-neutral-300'
+                                  }`}
+                                >
+                                  {idx === 0 ? 'ថ្ងៃទី១ (សៅរ៍)' : 'ថ្ងៃទី២ (អាទិត្យ)'}
+                                </p>
+                                <p className={`text-[10px] font-mono truncate ${
+                                  theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'
+                                }`}>
+                                  {shift.timeLine?.length || 0} ពិធី
+                                </p>
+                              </div>
+                            </div>
+
+                            {shifts.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleRemoveDay(idx);
+                                }}
+                                className="p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-400 hover:text-rose-200 border border-rose-500/30 hover:border-rose-500/50 shadow-sm ml-1.5 transition-all active:scale-90 shrink-0 group/del cursor-pointer"
+                                title="ចុចដើម្បីលុបថ្ងៃនេះ (Click to delete this day)"
+                                aria-label="Delete this day"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-400 group-hover/del:text-rose-200 group-hover/del:scale-110 transition-transform duration-150" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Active Day Information Edit Card */}
+                  {activeShift && (
+                    <div className={`p-4 rounded-2xl border space-y-3 ${
+                      theme === 'light'
+                        ? 'bg-amber-50/50 border-amber-200/80 shadow-sm'
+                        : 'bg-black/40 border-amber-500/20'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold font-moul flex items-center gap-1.5 ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-300'
+                        }`}>
+                          <span>កែសម្រួលព័ត៌មានថ្ងៃទី {activeShiftIndex + 1}</span>
+                        </span>
+                        <span className={`text-[11px] font-mono ${
+                          theme === 'light' ? 'text-amber-800 font-bold' : 'text-amber-400/80'
+                        }`}>
+                          {activeShift.timeLine?.length || 0} កម្មវិធី
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className={`text-[11px] font-khmer font-semibold flex items-center gap-1.5 ${
+                              theme === 'light' ? 'text-neutral-800' : 'text-neutral-300'
+                            }`}>
+                              <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                              <span>ចំណងជើងថ្ងៃ (Day Title - Khmer)</span>
+                            </label>
+                            {activeShift.date && (
+                              <button
+                                type="button"
+                                onClick={() => handleApplyCalendarTitles(activeShiftIndex)}
+                                className={`text-[10px] font-khmer flex items-center gap-1 transition-colors cursor-pointer ${
+                                  theme === 'light' ? 'text-amber-800 hover:text-amber-950 font-bold' : 'text-amber-400 hover:text-amber-200'
+                                }`}
+                                title="បង្កើតចំណងជើងស្វ័យប្រវត្តិតាមប្រតិទិន"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>យកតាមប្រតិទិន</span>
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={activeShift.name}
+                            onChange={e =>
+                              handleUpdateShiftInfo(activeShiftIndex, { name: e.target.value })
+                            }
+                            placeholder="ឧ. ថ្ងៃទី១ ៖ ថ្ងៃសៅរ៍ ទី០៦ ខែមករា..."
+                            className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none transition-all ${
+                              theme === 'light'
+                                ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                                : 'bg-black/60 border border-amber-500/40 text-amber-100 focus:border-amber-400 shadow-inner'
+                            }`}
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className={`text-[11px] font-khmer font-semibold flex items-center gap-1.5 ${
+                              theme === 'light' ? 'text-neutral-800' : 'text-neutral-300'
+                            }`}>
+                              <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Day Title (English)</span>
+                            </label>
+                            {activeShift.date && (
+                              <button
+                                type="button"
+                                onClick={() => handleApplyCalendarTitles(activeShiftIndex)}
+                                className={`text-[10px] font-sans flex items-center gap-1 transition-colors cursor-pointer ${
+                                  theme === 'light' ? 'text-amber-800 hover:text-amber-950 font-bold' : 'text-amber-400 hover:text-amber-200'
+                                }`}
+                                title="Auto-fill English Day Title from Calendar"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>From Calendar</span>
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={activeShift.nameEn || ''}
+                            onChange={e =>
+                              handleUpdateShiftInfo(activeShiftIndex, { nameEn: e.target.value })
+                            }
+                            placeholder="e.g. Day 1: Saturday, January 06..."
+                            className={`w-full px-3 py-2 rounded-xl text-xs focus:outline-none transition-all ${
+                              theme === 'light'
+                                ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                                : 'bg-black/60 border border-amber-500/40 text-neutral-200 focus:border-amber-400 shadow-inner'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className={`w-full p-3 rounded-xl border space-y-2 ${
+                        theme === 'light'
+                          ? 'bg-amber-100/60 border-amber-300 text-neutral-900'
+                          : 'bg-amber-500/10 border border-amber-500/30'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <label className={`text-[11px] font-khmer font-semibold flex items-center gap-1.5 ${
+                            theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                          }`}>
+                            <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                            <span>កាលបរិច្ឆេទថ្ងៃទី {activeShiftIndex + 1} (Calendar Date)</span>
+                          </label>
+                          {activeShift.date && (
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md border font-bold ${
+                              theme === 'light'
+                                ? 'bg-amber-200 border-amber-300 text-amber-950'
+                                : 'bg-amber-400/20 text-amber-300 border-amber-400/30'
+                            }`}>
+                              {generateDayTitlesFromDate(activeShift.date, activeShiftIndex)?.khmerDay || 'ប្រតិទិន'}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="date"
+                          value={activeShift.date || ''}
+                          onChange={e =>
+                            handleUpdateShiftDate(activeShiftIndex, e.target.value, true)
+                          }
+                          className={`w-full px-3.5 py-2 rounded-xl text-xs font-mono cursor-pointer transition-all ${
+                            theme === 'light'
+                              ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                              : 'bg-black/70 border border-amber-500/50 text-amber-100 focus:border-amber-400 shadow-md'
+                          }`}
+                        />
+                        {activeShift.date && (() => {
+                          const calInfo = generateDayTitlesFromDate(activeShift.date, activeShiftIndex);
+                          if (!calInfo) return null;
+                          return (
+                            <div className={`flex flex-wrap items-center justify-between gap-2 pt-1 border-t text-[11px] ${
+                              theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                            }`}>
+                              <div className={`font-khmer flex items-center gap-1.5 ${
+                                theme === 'light' ? 'text-neutral-700' : 'text-neutral-300'
+                              }`}>
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className={`font-medium ${theme === 'light' ? 'text-amber-950 font-bold' : 'text-amber-200'}`}>{calInfo.summaryKh}</span>
+                                <span className={`font-mono text-[10px] ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'}`}>({calInfo.summaryEn})</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApplyCalendarTitles(activeShiftIndex)}
+                                  className={`px-2.5 py-1 rounded-lg border text-[10px] font-khmer font-semibold flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer ${
+                                    theme === 'light'
+                                      ? 'bg-white hover:bg-amber-100 text-amber-950 border-amber-300'
+                                      : 'bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 hover:text-amber-100 border-amber-400/40'
+                                  }`}
+                                  title="ធ្វើបច្ចុប្បន្នភាពចំណងជើងថ្ងៃ"
+                                >
+                                  <Sparkles className="w-3 h-3 text-amber-600" />
+                                  <span>Sync Titles</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSyncDateFromShift(activeShiftIndex)}
+                                  className="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 border border-amber-400/50 text-[10px] font-khmer font-bold flex items-center gap-1 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                  title="កំណត់កាលបរិច្ឆេទថ្ងៃនេះក្នុងលិខិតអញ្ជើញ"
+                                >
+                                  <Calendar className="w-3 h-3 text-amber-900" />
+                                  <span>ដាក់ជាថ្ងៃក្នុងលិខិតអញ្ជើញ (Set as Invite Date)</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ceremonies / Timeline Items for Active Day */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <h4 className={`text-xs font-bold font-moul ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        តារាងកម្មវិធីសម្រាប់ថ្ងៃទី {activeShiftIndex + 1}
+                      </h4>
+                      <p className={`text-[11px] font-khmer ${
+                        theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'
+                      }`}>
+                        កែសម្រួលម៉ោង និងឈ្មោះពិធីនីមួយៗ
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddTimelineItem}
+                      className="px-3 py-1.5 rounded-xl bg-amber-400 text-amber-950 font-khmer font-bold text-xs hover:bg-amber-300 flex items-center gap-1 shadow transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>បន្ថែមកម្មវិធី</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {timelineItems.map((item, idx) => (
+                      <div
+                        key={`editor-timeline-${activeShiftIndex}-${idx}-${item.id || idx}`}
+                        className={`p-3.5 rounded-xl border space-y-2.5 transition-all ${
+                          theme === 'light'
+                            ? 'bg-white border-amber-200 shadow-sm hover:border-amber-400'
+                            : 'bg-black/50 border-amber-500/20 hover:border-amber-500/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <input
+                              type="text"
+                              value={item.time}
+                              onChange={e => handleUpdateTimelineItem(item.id || idx, { time: e.target.value })}
+                              placeholder="07:00 AM"
+                              className={`w-24 px-2 py-1 rounded-lg font-mono text-xs focus:outline-none ${
+                                theme === 'light'
+                                  ? 'bg-amber-50 border border-amber-300 text-amber-950 font-bold focus:border-amber-500'
+                                  : 'bg-black/60 border border-amber-500/30 text-amber-300 focus:border-amber-400'
+                              }`}
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTimelineItem(item.id || idx)}
+                            className="p-1 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                            title="Delete step"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div>
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={e => handleUpdateTimelineItem(item.id || idx, { name: e.target.value })}
+                            placeholder="ឈ្មោះពិធី (Khmer)"
+                            className={`w-full px-2.5 py-1.5 rounded-lg font-khmer text-xs focus:outline-none ${
+                              theme === 'light'
+                                ? 'bg-amber-50/50 border border-amber-200 text-neutral-900 focus:border-amber-500'
+                                : 'bg-black/60 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                            }`}
+                          />
+                        </div>
+
+                        <div>
+                          <input
+                            type="text"
+                            value={item.nameEn || ''}
+                            onChange={e => handleUpdateTimelineItem(item.id || idx, { nameEn: e.target.value })}
+                            placeholder="Ceremony Name (English)"
+                            className={`w-full px-2.5 py-1.5 rounded-lg text-xs focus:outline-none ${
+                              theme === 'light'
+                                ? 'bg-amber-50/50 border border-amber-200 text-neutral-700 focus:border-amber-500'
+                                : 'bg-black/60 border border-amber-500/30 text-neutral-300 focus:border-amber-400'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: MESSAGES & CONTENT */}
+              {activeTab === 'messages' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      ចំណងជើងសេចក្តីអញ្ជើញ (Invitation Title)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.config.invitation_kh.invitation_title}
+                      onChange={e => handleUpdateKhContent('invitation_title', e.target.value)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none ${
+                        theme === 'light'
+                          ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                          : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      ខ្លឹមសារអញ្ជើញ (Invitation Message - Khmer)
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={formData.config.invitation_kh.invitation_message}
+                      onChange={e => handleUpdateKhContent('invitation_message', e.target.value)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none ${
+                        theme === 'light'
+                          ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                          : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                      }`}
+                    />
+                  </div>
+
+                  <div className={`pt-2 border-t ${
+                    theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                  }`}>
+                    <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      ចំណងជើងអរគុណ (Gratitude Title)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.config.invitation_kh.gratitude_title || ''}
+                      onChange={e => handleUpdateKhContent('gratitude_title', e.target.value)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none ${
+                        theme === 'light'
+                          ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                          : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      សារអរគុណ និងសូមអភ័យទោស (Gratitude Message - Khmer)
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={formData.config.invitation_kh.gratitude_message || ''}
+                      onChange={e => handleUpdateKhContent('gratitude_message', e.target.value)}
+                      className={`w-full px-3 py-2 rounded-xl text-xs font-khmer focus:outline-none ${
+                        theme === 'light'
+                          ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                          : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                      }`}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: KHQR & GIFTS */}
+              {activeTab === 'khqr' && (
+                <div className="space-y-4">
+                  {/* Header & Template Metadata */}
+                  <div className={`flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b ${
+                    theme === 'light' ? 'border-amber-200/80' : 'border-amber-500/20'
+                  }`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500">
+                        <QrCode className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className={`text-xs sm:text-sm font-bold font-moul ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        }`}>
+                          បញ្ចូលរូបភាព QR ចងដៃ និងព័ត៌មានធនាគារ (KHQR & Bank)
+                        </h4>
+                        <p className={`text-[11px] font-khmer ${
+                          theme === 'light' ? 'text-amber-900/70' : 'text-amber-300/70'
+                        }`}>
+                          រក្សាទុកចូលក្នុងគម្រូ និងប្រភេទធៀប (Save Into Template & Template Type)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Active Template & Type Badges */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-khmer font-semibold border flex items-center gap-1.5 ${
+                        theme === 'light'
+                          ? 'bg-amber-100/80 text-amber-950 border-amber-300'
+                          : 'bg-amber-500/20 text-amber-200 border-amber-500/40'
+                      }`}>
+                        {(() => {
+                          const CurrentTypeIcon = templateTypeLabels[currentTemplateType].icon;
+                          return <CurrentTypeIcon className="w-3.5 h-3.5 text-amber-500" />;
+                        })()}
+                        <span>ប្រភេទធៀប៖ {templateTypeLabels[currentTemplateType].kh}</span>
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-mono border ${
+                        theme === 'light'
+                          ? 'bg-white/90 text-neutral-600 border-neutral-200'
+                          : 'bg-neutral-800 text-neutral-300 border-neutral-700'
+                      }`} title={currentTemplateId}>
+                        ID: {currentTemplateId.length > 14 ? currentTemplateId.slice(0, 10) + '...' : currentTemplateId}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Template Type Selector */}
+                  <div>
+                    <label className={`block text-[11px] font-khmer font-semibold mb-1.5 ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      ជ្រើសរើសប្រភេទធៀបដែលត្រូវរក្សាទុក (Save into Template Type):
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {(Object.keys(templateTypeLabels) as Array<keyof typeof templateTypeLabels>).map(typeKey => {
+                        const item = templateTypeLabels[typeKey];
+                        const ItemIcon = item.icon;
+                        const isSelected = currentTemplateType === typeKey;
+                        return (
+                          <button
+                            key={typeKey}
+                            type="button"
+                            onClick={() => {
+                              handleUpdateField('eventType', typeKey);
+                              if (typeKey === 'birthday') {
+                                handleUpdateField('singlePerson', true);
+                              } else if (typeKey === 'wedding' || typeKey === 'engagement') {
+                                handleUpdateField('singlePerson', false);
+                              }
+                            }}
+                            className={`px-2.5 py-2 rounded-xl text-xs font-khmer flex items-center justify-center gap-1.5 border transition-all ${
+                              isSelected
+                                ? theme === 'light'
+                                  ? 'bg-amber-500 text-amber-950 font-bold border-amber-600 shadow-sm ring-2 ring-amber-400/40'
+                                  : 'bg-amber-400 text-black font-bold border-amber-300 shadow-md ring-2 ring-amber-400/30'
+                                : theme === 'light'
+                                ? 'bg-white/80 text-amber-950 border-amber-200 hover:bg-amber-100/60'
+                                : 'bg-black/40 text-neutral-300 border-neutral-800 hover:border-amber-500/30 hover:text-amber-200'
+                            }`}
+                          >
+                            <ItemIcon className="w-3.5 h-3.5" />
+                            <span>{item.badge}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Bank Info Fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        ឈ្មោះគណនី (Account Name)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.config.bankInfo?.accountName || ''}
+                        placeholder="ឧ. RO MALAY & UOM VOLAK"
+                        onChange={e => {
+                          const currentBank = formData.config.bankInfo || {
+                            accountName: '',
+                            accountNumber: '',
+                            bankName: 'ABA Bank',
+                          };
+                          handleUpdateConfig('bankInfo', {
+                            ...currentBank,
+                            accountName: e.target.value,
+                          });
+                        }}
+                        className={`w-full px-3 py-2 rounded-xl font-mono text-xs focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        លេខគណនី (Account Number)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.config.bankInfo?.accountNumber || ''}
+                        placeholder="ឧ. 002 458 912"
+                        onChange={e => {
+                          const currentBank = formData.config.bankInfo || {
+                            accountName: '',
+                            accountNumber: '',
+                            bankName: 'ABA Bank',
+                          };
+                          handleUpdateConfig('bankInfo', {
+                            ...currentBank,
+                            accountNumber: e.target.value,
+                          });
+                        }}
+                        className={`w-full px-3 py-2 rounded-xl font-mono text-xs focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                        theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                      }`}>
+                        ឈ្មោះធនាគារ (Bank Name)
+                      </label>
+                      <select
+                        value={formData.config.bankInfo?.bankName || 'ABA Bank'}
+                        onChange={e => {
+                          const currentBank = formData.config.bankInfo || {
+                            accountName: '',
+                            accountNumber: '',
+                            bankName: 'ABA Bank',
+                          };
+                          handleUpdateConfig('bankInfo', {
+                            ...currentBank,
+                            bankName: e.target.value,
+                          });
+                        }}
+                        className={`w-full px-3 py-2 rounded-xl font-khmer text-xs focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      >
+                        <option value="ABA Bank">ABA Bank</option>
+                        <option value="ACLEDA Bank">ACLEDA Bank</option>
+                        <option value="Canadia Bank">Canadia Bank</option>
+                        <option value="Wing Bank">Wing Bank</option>
+                        <option value="Sathapana Bank">Sathapana Bank</option>
+                        <option value="Bakong KHQR">Bakong KHQR</option>
+                        <option value="J Trust Royal Bank">J Trust Royal Bank</option>
+                        <option value="Phillip Bank">Phillip Bank</option>
+                        <option value="Prince Bank">Prince Bank</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* QR Code Upload Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div className={`p-3.5 rounded-xl border transition-all ${
+                      theme === 'light'
+                        ? 'bg-white/90 border-amber-200 shadow-sm hover:border-amber-400'
+                        : 'bg-black/60 border-amber-500/20 hover:border-amber-500/40'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-xs font-khmer font-bold flex items-center gap-1.5 ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        }`}>
+                          <QrCode className="w-3.5 h-3.5 text-amber-500" />
+                          <span>KHQR ប្រាក់ដុល្លារ (USD QR)</span>
+                        </span>
+                        {formData.config.qr_code ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-khmer bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                            មានរូបភាព QR
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-khmer opacity-60">
+                            មិនទាន់មាន QR
+                          </span>
+                        )}
+                      </div>
+                      <ImageUploadInput
+                        label="ជ្រើសរើស ឬទម្លាក់រូបភាព KHQR USD"
+                        value={formData.config.qr_code || ''}
+                        onChange={newUrl => handleUpdateConfig('qr_code', newUrl)}
+                        aspectRatio="aspect-square"
+                        theme={theme}
+                      />
+                    </div>
+
+                    <div className={`p-3.5 rounded-xl border transition-all ${
+                      theme === 'light'
+                        ? 'bg-white/90 border-amber-200 shadow-sm hover:border-amber-400'
+                        : 'bg-black/60 border-amber-500/20 hover:border-amber-500/40'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-xs font-khmer font-bold flex items-center gap-1.5 ${
+                          theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        }`}>
+                          <QrCode className="w-3.5 h-3.5 text-amber-500" />
+                          <span>KHQR ប្រាក់រៀល (KHR QR)</span>
+                        </span>
+                        {formData.config.qr_code_riel ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-khmer bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                            មានរូបភាព QR
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-khmer opacity-60">
+                            មិនទាន់មាន QR
+                          </span>
+                        )}
+                      </div>
+                      <ImageUploadInput
+                        label="ជ្រើសរើស ឬទម្លាក់រូបភាព KHQR KHR"
+                        value={formData.config.qr_code_riel || ''}
+                        onChange={newUrl => handleUpdateConfig('qr_code_riel', newUrl)}
+                        aspectRatio="aspect-square"
+                        theme={theme}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Save & Fetch Actions */}
+                  <div className={`pt-3.5 border-t flex flex-wrap items-center justify-between gap-2.5 ${
+                    theme === 'light' ? 'border-amber-200/80' : 'border-amber-500/20'
+                  }`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => handleSaveToTemplateAndType(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-khmer font-bold text-amber-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-500 border border-amber-500 shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50 active:scale-95"
+                      >
+                        {isSaving ? (
+                          <div className="w-3.5 h-3.5 border-2 border-amber-950 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Save className="w-3.5 h-3.5" />
+                        )}
+                        <span>រក្សាទុកចូលក្នុងគម្រូ និងប្រភេទធៀបនេះ (Save to Template & Type)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => handleSaveToTemplateAndType(true)}
+                        className={`px-3 py-2 rounded-xl text-xs font-khmer border transition-all ${
+                          theme === 'light'
+                            ? 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200'
+                            : 'bg-white/5 text-amber-200 border-amber-500/30 hover:bg-white/10'
+                        }`}
+                      >
+                        <span>អនុវត្តចំពោះគ្រប់ប្រភេទធៀប (All Types)</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isFetchingSavedInfo}
+                      onClick={() => fetchSavedInformation()}
+                      className={`px-3 py-2 rounded-xl text-xs font-khmer border flex items-center gap-1.5 transition-all ${
+                        theme === 'light'
+                          ? 'bg-white text-neutral-800 border-neutral-300 hover:bg-neutral-50 shadow-sm'
+                          : 'bg-neutral-800 text-neutral-200 border-neutral-700 hover:bg-neutral-700'
+                      }`}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 text-amber-500 ${isFetchingSavedInfo ? 'animate-spin' : ''}`} />
+                      <span>{isFetchingSavedInfo ? 'កំពុងទាញយក...' : 'ទាញយកព័ត៌មានឡើងវិញ (Fetch Saved)'}</span>
+                    </button>
+                  </div>
+
+                  {/* LIVE RETRIEVED INFORMATION CARD */}
+                  <div className={`p-3.5 rounded-xl border transition-all ${
+                    theme === 'light'
+                      ? 'bg-amber-100/60 border-amber-300/80 text-amber-950'
+                      : 'bg-black/70 border-amber-500/30 text-amber-100'
+                  }`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-amber-500/20">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span className="text-xs font-khmer font-bold">
+                          ព័ត៌មានដែលបានរក្សាទុកក្នុងគម្រូ (Retrieved Information Saved in Template):
+                        </span>
+                      </div>
+                      {lastRetrievedTime && (
+                        <span className="text-[10px] font-mono opacity-75">
+                          ម៉ោងទាញយក៖ {lastRetrievedTime}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-khmer">
+                      <div>
+                        <span className="block text-[10px] opacity-70">គម្រូធៀប (Template):</span>
+                        <span className="font-bold truncate block">{formData.name || currentTemplatePreset.titleKh}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] opacity-70">ប្រភេទធៀប (Type):</span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>{templateTypeLabels[currentTemplateType].kh}</span>
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] opacity-70">ម្ចាស់គណនី (Account):</span>
+                        <span className="font-mono font-semibold truncate block">
+                          {formData.config.bankInfo?.accountName || 'មិនទាន់បញ្ជាក់'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] opacity-70">លេខគណនី & ធនាគារ:</span>
+                        <span className="font-mono font-semibold truncate block">
+                          {formData.config.bankInfo?.accountNumber || 'មិនទាន់មាន'} ({formData.config.bankInfo?.bankName || 'ABA'})
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 pt-2 mt-2 border-t border-amber-500/10 text-[11px] font-khmer">
+                      <div className="flex items-center gap-1.5">
+                        <span className="opacity-75">USD QR:</span>
+                        {formData.config.qr_code ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> មានរូបភាព QR
+                          </span>
+                        ) : (
+                          <span className="opacity-60">មិនទាន់មាន</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="opacity-75">KHR QR:</span>
+                        {formData.config.qr_code_riel ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> មានរូបភាព QR
+                          </span>
+                        ) : (
+                          <span className="opacity-60">មិនទាន់មាន</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 8: BACKGROUND MUSIC */}
+              {activeTab === 'music' && (
+                <div className="space-y-4">
+                  {previewAudioUrl && (
+                    <audio
+                      src={previewAudioUrl}
+                      autoPlay
+                      onEnded={() => setPreviewAudioUrl(null)}
+                      className="hidden"
+                    />
+                  )}
+
+                  <div>
+                    <label className={`block text-xs font-khmer font-semibold mb-1 ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      តំណភ្ជាប់តន្ត្រី (Audio URL)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={formData.config.background_music}
+                        onChange={e => handleUpdateConfig('background_music', e.target.value)}
+                        placeholder="https://.../music.mp3"
+                        className={`flex-1 px-3 py-2 rounded-xl text-xs font-mono focus:outline-none ${
+                          theme === 'light'
+                            ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                            : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+                        }`}
+                      />
+                      {formData.config.background_music && (
+                        <button
+                          type="button"
+                          onClick={() => togglePreviewAudio(formData.config.background_music)}
+                          className={`px-3 py-2 rounded-xl text-xs font-khmer font-bold flex items-center gap-1.5 transition-all ${
+                            previewAudioUrl === formData.config.background_music
+                              ? 'bg-amber-500 text-amber-950 animate-pulse shadow'
+                              : theme === 'light'
+                              ? 'bg-amber-200 text-amber-950 hover:bg-amber-300'
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
+                          }`}
+                        >
+                          {previewAudioUrl === formData.config.background_music ? (
+                            <>
+                              <Pause className="w-3.5 h-3.5" />
+                              <span>ផ្អាក</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5" />
+                              <span>ស្តាប់</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={`pt-2 border-t ${
+                    theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                  }`}>
+                    <label className={`block text-xs font-khmer font-semibold mb-2 ${
+                      theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                    }`}>
+                      ជ្រើសរើសបទចម្រៀងគំរូ (Select Preset Melodies)
+                    </label>
+                    <div className="space-y-2">
+                      {MUSIC_PRESETS.map((preset, idx) => {
+                        const isSelected = formData.config.background_music === preset.url;
+                        const isPlayingThis = previewAudioUrl === preset.url;
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-xs transition-all ${
+                              isSelected
+                                ? 'bg-amber-400/20 border-amber-400 text-amber-900 dark:text-amber-200 font-bold'
+                                : theme === 'light'
+                                ? 'bg-white border-amber-200 text-neutral-800 hover:border-amber-400 shadow-sm'
+                                : 'bg-black/40 border-white/10 text-neutral-300 hover:border-amber-500/30'
+                            }`}
+                          >
+                            <div
+                              className="flex-1 cursor-pointer pr-2"
+                              onClick={() => handleUpdateConfig('background_music', preset.url)}
+                            >
+                              <div className="font-khmer font-semibold">{preset.name}</div>
+                              {preset.enName && (
+                                <div className={`text-[11px] ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} font-normal mt-0.5`}>
+                                  {preset.enName}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePreviewAudio(preset.url);
+                                }}
+                                className={`p-1.5 rounded-lg text-xs font-khmer flex items-center gap-1 transition-all ${
+                                  isPlayingThis
+                                    ? 'bg-amber-500 text-amber-950 font-bold shadow animate-pulse'
+                                    : theme === 'light'
+                                    ? 'bg-amber-100 text-amber-950 hover:bg-amber-200'
+                                    : 'bg-neutral-800 text-neutral-200 hover:text-amber-200'
+                                }`}
+                                title={isPlayingThis ? 'ផ្អាកស្តាប់' : 'ស្តាប់សាកល្បង'}
+                              >
+                                {isPlayingThis ? (
+                                  <>
+                                    <Pause className="w-3.5 h-3.5" />
+                                    <span className="text-[11px]">ផ្អាក</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className="w-3.5 h-3.5" />
+                                    <span className="text-[11px]">ស្តាប់</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateConfig('background_music', preset.url)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-khmer font-bold transition-all flex items-center gap-1 ${
+                                  isSelected
+                                    ? 'bg-amber-400 text-amber-950 shadow'
+                                    : theme === 'light'
+                                    ? 'bg-white border border-amber-300 text-neutral-800 hover:border-amber-500'
+                                    : 'bg-neutral-900 border border-white/10 text-neutral-300 hover:border-amber-400'
+                                }`}
+                              >
+                                {isSelected ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-amber-950 stroke-[2.5]" />
+                                    <span>បានជ្រើសរើស</span>
+                                  </>
+                                ) : (
+                                  <span>ជ្រើសរើស</span>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with Action Buttons */}
+            <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3.5 border-t ${
+              theme === 'light'
+                ? 'border-amber-200 bg-amber-100/50'
+                : theme === 'gray'
+                ? 'border-slate-800 bg-[#16181f]'
+                : 'border-amber-500/30 bg-black'
+            }`}>
+              <div className="flex flex-wrap items-center gap-2">
+                {isSaving ? (
+                  <span className="text-amber-600 dark:text-amber-300 flex items-center gap-1.5 text-xs font-khmer animate-pulse">
+                    <div className="w-3.5 h-3.5 border-2 border-amber-600 dark:border-amber-400 border-t-transparent rounded-full animate-spin" />
+                    <span>កំពុងរក្សាទុកទៅកាន់ Firebase Database & Server...</span>
+                  </span>
+                ) : showSavedToast ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-khmer font-semibold">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Firebase Database: រួចរាល់</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-khmer font-semibold">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Server Storage: រួចរាល់</span>
+                    </span>
+                  </div>
+                ) : (
+                  <span className={`text-[11px] font-khmer flex items-center gap-1.5 ${
+                    theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'
+                  }`}>
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                    <span>រក្សាទុកស្វ័យប្រវត្តទៅកាន់ Database (Firebase) និង Server</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={onClose}
+                  className={`px-4 py-2 rounded-xl text-xs font-khmer transition-colors disabled:opacity-50 ${
+                    theme === 'light'
+                      ? 'text-neutral-700 hover:text-neutral-900 bg-amber-200/60 hover:bg-amber-200'
+                      : 'text-neutral-300 hover:text-white bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  បិទ (Close)
+                </button>
+
+                <button
+                  id="save-event-changes-btn"
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleSaveAll}
+                  className="px-5 py-2 rounded-xl font-moul text-xs text-amber-950 font-bold bg-gradient-to-r from-amber-300 via-amber-400 to-amber-300 hover:from-amber-200 hover:to-amber-400 shadow-lg shadow-amber-900/40 flex items-center gap-1.5 transition-all disabled:opacity-50 active:scale-95 cursor-pointer"
+                >
+                  {isSaving ? (
+                    <div className="w-3.5 h-3.5 border-2 border-amber-950 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isSaving ? 'កំពុងរក្សាទុក...' : 'រក្សាទុក (Save)'}</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

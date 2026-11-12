@@ -1,0 +1,3233 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { useState, useEffect, useRef, useCallback, FormEvent } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Heart,
+  Calendar,
+  MapPin,
+  ChevronDown,
+  Sparkles,
+  Home,
+  Cake,
+  Crown,
+  Share2,
+  MailCheck,
+  RotateCcw,
+  ExternalLink,
+  Edit3,
+  ImagePlus,
+  UserPlus,
+  Users,
+  LayoutTemplate,
+  SlidersHorizontal,
+  Settings,
+  LogOut,
+  LogIn,
+  KeyRound,
+  X,
+  Play,
+  Pause,
+  ChevronsDown,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  Trash2,
+  Github,
+} from 'lucide-react';
+import { WEDDING_EVENT } from './data/weddingData';
+import { sanitizeWeddingEvent, VERIFIED_WEDDING_COVER } from './utils/sanitizeEvent';
+import { findTemplatePreset, getCategoryCoverImage, VERIFIED_CATEGORY_COVERS, EVENT_PRESETS } from './data/eventTemplates';
+import { Language, WeddingEvent } from './types';
+import { formatKhmerDate, formatEnDate } from './utils/khmerHelpers';
+import { testFirestoreConnection, auth, db } from './lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
+import { saveEventToFirebase, fetchEventFromFirebase, subscribeToEvent, syncUserProfile, fetchUserEvent, registerSystemUserInFirebase, fetchSystemUsersFromFirebase, deleteSystemUserFromFirebase } from './lib/firebaseServices';
+import AudioPlayer from './components/AudioPlayer';
+import LanguageToggle from './components/LanguageToggle';
+import ThemeToggle, { ThemeMode } from './components/ThemeToggle';
+import EnvelopeModal from './components/EnvelopeModal';
+import CountdownSection from './components/CountdownSection';
+import ScheduleSection from './components/ScheduleSection';
+import LocationSection from './components/LocationSection';
+import GallerySection from './components/GallerySection';
+import GiftKHQRSection from './components/GiftKHQRSection';
+import WishesSection from './components/WishesSection';
+import RSVPModal from './components/RSVPModal';
+import ShareInvitationModal from './components/ShareInvitationModal';
+import EventEditorModal, { TabType } from './components/EventEditorModal';
+import AddGuestModal from './components/AddGuestModal';
+import EventTypeModal from './components/EventTypeModal';
+import RoyalGoldRibbonBanner from './components/RoyalGoldRibbonBanner';
+import RingIcon from './components/RingIcon';
+import BeautifulButterflies from './components/BeautifulButterflies';
+import FloatingBalloonsAndGifts from './components/FloatingBalloonsAndGifts';
+import FloatingEngagementRingsAndSparkles from './components/FloatingEngagementRingsAndSparkles';
+import { KhmerCornerKbach, KhmerDividerKbach, ShapedTitleText } from './components/KhmerRoyalOrnament';
+import { useWebSocket } from './lib/useWebSocket';
+
+export default function App() {
+  const [language, setLanguage] = useState<Language>('kh');
+  const [hasOpenedEnvelope, setHasOpenedEnvelope] = useState(false);
+  const [showEnvelopeModal, setShowEnvelopeModal] = useState(true);
+  const [showRSVPModal, setShowRSVPModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showEditorModal, setShowEditorModal] = useState(false);
+  const [editorInitialTab, setEditorInitialTab] = useState<TabType>('couple');
+  const [showAddGuestModal, setShowAddGuestModal] = useState(false);
+  const [showEventTypeModal, setShowEventTypeModal] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    return (localStorage.getItem('wedding_theme') as ThemeMode) || 'dark';
+  });
+  const [isThemeTransitioning, setIsThemeTransitioning] = useState(false);
+
+  // Real-time WebSocket connection for live guest presence & instant updates
+  const { isConnected: isWsConnected, onlineCount: wsOnlineCount } = useWebSocket(useCallback((msg) => {
+    if (msg.type === 'wishes:new' && msg.wish) {
+      // New real-time wish received
+      console.log('[WebSocket] Live wish received:', msg.wish.name);
+    }
+  }, []));
+
+  // Helper to validate and guarantee template type
+  const validateCurrentTemplateType = (eventData: Partial<WeddingEvent> | null | undefined): 'wedding' | 'engagement' | 'housewarming' | 'birthday' | 'anniversary' => {
+    if (eventData?.eventType) return eventData.eventType;
+    const id = eventData?.id || '';
+    if (id.includes('anniversary')) return 'anniversary';
+    if (id.includes('housewarming')) return 'housewarming';
+    if (id.includes('engagement')) return 'engagement';
+    if (id.includes('birthday') || eventData?.singlePerson) return 'birthday';
+    return 'wedding';
+  };
+
+  // Load custom event data from URL params, localStorage, or preset
+  const [event, setEvent] = useState<WeddingEvent>(() => {
+    try {
+      // 1. Check URL parameters FIRST so direct links and shared links load the correct template/category immediately
+      let urlId: string | null = null;
+      let urlType: string | null = null;
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        urlId = params.get('id');
+        urlType = params.get('type');
+      }
+
+      if (urlId || urlType) {
+        const targetId = urlId || urlType!;
+        const storedTemplate = localStorage.getItem(`wedding_template_saved_${targetId}`);
+        if (storedTemplate) {
+          const parsed = sanitizeWeddingEvent(JSON.parse(storedTemplate));
+          return parsed;
+        }
+
+        const preset = findTemplatePreset(targetId);
+        if (preset) {
+          return sanitizeWeddingEvent({
+            ...preset.sampleEvent,
+            eventType: preset.type,
+          });
+        }
+      }
+
+      // 2. Otherwise check active template ID and type from localStorage
+      const activeTemplateId = localStorage.getItem('wedding_last_active_template_id');
+      const activeTemplateType = localStorage.getItem('wedding_last_template_type');
+
+      if (activeTemplateId) {
+        const storedTemplate = localStorage.getItem(`wedding_template_saved_${activeTemplateId}`);
+        if (storedTemplate) {
+          const parsed = sanitizeWeddingEvent(JSON.parse(storedTemplate));
+          parsed.eventType = parsed.eventType || (activeTemplateType as any) || validateCurrentTemplateType(parsed);
+          return parsed;
+        }
+        const preset = findTemplatePreset(activeTemplateId);
+        if (preset) {
+          return sanitizeWeddingEvent({
+            ...preset.sampleEvent,
+            eventType: preset.type,
+          });
+        }
+      }
+      if (activeTemplateType) {
+        const storedByType = localStorage.getItem(`wedding_template_type_${activeTemplateType}`);
+        if (storedByType) {
+          const parsed = sanitizeWeddingEvent(JSON.parse(storedByType));
+          parsed.eventType = parsed.eventType || (activeTemplateType as any);
+          return parsed;
+        }
+        const preset = findTemplatePreset(activeTemplateType);
+        if (preset) {
+          return sanitizeWeddingEvent({
+            ...preset.sampleEvent,
+            eventType: preset.type,
+          });
+        }
+      }
+      const stored = localStorage.getItem('wedding_custom_event_data');
+      if (stored) {
+        const parsed = sanitizeWeddingEvent(JSON.parse(stored));
+        parsed.eventType = parsed.eventType || validateCurrentTemplateType(parsed);
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load stored event:', e);
+    }
+    const defaultEvent = sanitizeWeddingEvent(WEDDING_EVENT);
+    defaultEvent.eventType = 'wedding';
+    return defaultEvent;
+  });
+
+  const handleThemeChange = (newTheme: ThemeMode) => {
+    if (newTheme === theme) return;
+    setIsThemeTransitioning(true);
+    setTheme(newTheme);
+    setTimeout(() => {
+      setIsThemeTransitioning(false);
+    }, 450);
+  };
+
+  useEffect(() => {
+    localStorage.setItem('wedding_theme', theme);
+  }, [theme]);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [localAdminOverride, setLocalAdminOverride] = useState<boolean>(() => {
+    return localStorage.getItem('wedding_admin_override') === 'true';
+  });
+
+  useEffect(() => {
+    testFirestoreConnection();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setAuthUser(user);
+      if (user) {
+        const userEventId = `event_${user.uid}`;
+        try {
+          await syncUserProfile(user, userEventId);
+        } catch (e) {
+          console.warn('Error recording user in Firestore:', e);
+        }
+
+        // Check if user has personal saved event data in database or needs initialization
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const hasExplicitUrlEvent = params.get('id') || params.get('type') || params.get('event');
+          if (!hasExplicitUrlEvent) {
+            try {
+              const personalEvent = await fetchEventFromFirebase(userEventId);
+              if (personalEvent) {
+                const sanitized = sanitizeWeddingEvent(personalEvent);
+                setEvent(sanitized);
+                localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+                localStorage.setItem(`wedding_user_event_${user.uid}`, JSON.stringify(sanitized));
+              } else {
+                // Initialize dedicated event for this user
+                setEvent(prevEvent => {
+                  const userInitialEvent: WeddingEvent = {
+                    ...prevEvent,
+                    id: userEventId,
+                    ownerId: user.uid,
+                    ownerEmail: user.email || '',
+                    updatedAt: new Date().toISOString(),
+                  };
+                  const sanitized = sanitizeWeddingEvent(userInitialEvent);
+                  localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+                  localStorage.setItem(`wedding_user_event_${user.uid}`, JSON.stringify(sanitized));
+                  saveEventToFirebase(sanitized).catch(() => {});
+                  return sanitized;
+                });
+              }
+            } catch (err) {
+              console.warn('Error loading user-specific event:', err);
+            }
+          }
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+  const [showAdminUsersModal, setShowAdminUsersModal] = useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotStep, setForgotStep] = useState<'enter_email' | 'enter_code' | 'new_password'>('enter_email');
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [enteredCode, setEnteredCode] = useState('');
+  const [newPasscodeVal, setNewPasscodeVal] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [resetTimer, setResetTimer] = useState<number>(60);
+
+  useEffect(() => {
+    if (forgotStep === 'enter_code' && resetTimer > 0) {
+      const timer = setInterval(() => {
+        setResetTimer(prev => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [forgotStep, resetTimer]);
+
+  const formatTimer = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remainingSecs = secs % 60;
+    return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
+  };
+
+  const handleSendResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = forgotEmail.trim().toLowerCase();
+    const users = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+    const userFound = users.find((u: any) => u.email?.toLowerCase() === email);
+    if (!userFound && email !== 'yoeurn.seyha@diu.edu.kh') {
+      setForgotMessage(language === 'kh' ? 'រកមិនឃើញអ៊ីមែលនេះក្នុងមូលដ្ឋានទិន្នន័យទេ។' : 'Email not found in database records.');
+      return;
+    }
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    setGeneratedCode(code);
+    setResetTimer(60);
+
+    try {
+      await fetch('/api/send-reset-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, sender: 'Yoeurn.seyha@diu.edu.kh' }),
+      });
+    } catch (err) {
+      console.warn('Error sending reset code via API:', err);
+    }
+
+    setForgotStep('enter_code');
+    setForgotMessage(
+      language === 'kh'
+        ? `លេខកូដផ្ទៀងផ្ទាត់ 4 ខ្ទង់ត្រូវផ្ញើចេញពី Yoeurn.seyha@diu.edu.kh៖ ${code}`
+        : `4-digit verification code sent from Yoeurn.seyha@diu.edu.kh: ${code}`
+    );
+  };
+
+  const handleVerifyResetCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (enteredCode.trim() === generatedCode) {
+      setForgotStep('new_password');
+      setForgotMessage('');
+    } else {
+      setForgotMessage(language === 'kh' ? 'លេខកូដមិនត្រឹមត្រូវ។ សូមព្យាយាមម្តងទៀត។' : 'Incorrect code. Please try again.');
+    }
+  };
+
+  const handleSaveNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = forgotEmail.trim().toLowerCase();
+    const users = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+    let idx = users.findIndex((u: any) => u.email?.toLowerCase() === email);
+    if (idx >= 0) {
+      users[idx].passcode = newPasscodeVal.trim();
+    } else {
+      users.push({ name: 'Admin/User', email, passcode: newPasscodeVal.trim(), createdAt: new Date().toISOString() });
+    }
+    localStorage.setItem('wedding_registered_users', JSON.stringify(users));
+    try {
+      await registerSystemUserInFirebase(users[idx >= 0 ? idx : users.length - 1]);
+    } catch (err) {
+      console.warn('Error updating password in DB:', err);
+    }
+    alert(language === 'kh' ? 'ប្តូរលេខសម្ងាត់ថ្មីបានជោគជ័យ!' : 'Password reset successfully!');
+    setShowForgotPasswordModal(false);
+    setForgotStep('enter_email');
+    setForgotEmail('');
+    setEnteredCode('');
+    setNewPasscodeVal('');
+    setForgotMessage('');
+  };
+  const [dbUsersList, setDbUsersList] = useState<any[]>([]);
+  const [editingUserIndex, setEditingUserIndex] = useState<number | null>(null);
+  const [editNameVal, setEditNameVal] = useState('');
+  const [editEmailVal, setEditEmailVal] = useState('');
+  const [editPassVal, setEditPassVal] = useState('');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [revealedPasscodeIndex, setRevealedPasscodeIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (showAdminUsersModal) {
+      fetchSystemUsersFromFirebase().then(users => {
+        const local = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+        const merged = [...local];
+        for (const u of users) {
+          if (!merged.some((m: any) => m.email?.toLowerCase() === u.email?.toLowerCase())) {
+            merged.push(u);
+          }
+        }
+        setDbUsersList(merged);
+      }).catch(() => {
+        setDbUsersList(JSON.parse(localStorage.getItem('wedding_registered_users') || '[]'));
+      });
+    }
+  }, [showAdminUsersModal]);
+
+  const handleSaveUserEdit = async (index: number) => {
+    const updated = [...dbUsersList];
+    updated[index] = {
+      ...updated[index],
+      name: editNameVal.trim() || updated[index].name,
+      email: editEmailVal.trim() || updated[index].email,
+      passcode: editPassVal.trim() || updated[index].passcode,
+    };
+    setDbUsersList(updated);
+    localStorage.setItem('wedding_registered_users', JSON.stringify(updated));
+    try {
+      await registerSystemUserInFirebase(updated[index]);
+    } catch (e) {
+      console.warn('Error updating user in DB:', e);
+    }
+    setEditingUserIndex(null);
+    alert(language === 'kh' ? 'កែប្រែព័ត៌មានអ្នកប្រើប្រាស់ជោគជ័យ!' : 'User updated successfully!');
+  };
+
+  // Check if target user is an Admin
+  const isTargetUserAdmin = (u: any): boolean => {
+    if (!u) return false;
+    const email = (u.email || '').toLowerCase().trim();
+    const name = (u.name || '').toLowerCase().trim();
+    const role = (u.role || '').toLowerCase().trim();
+    return email === 'yoeurn.seyha@diu.edu.kh' || role === 'admin' || name === 'seyha';
+  };
+
+  // Check if currently active/logged-in actor is an Admin
+  const checkIsCurrentActorAdmin = (): boolean => {
+    const activeEmail = (authUser?.email || '').toLowerCase().trim();
+    const activeIdentifier = (localStorage.getItem('wedding_logged_in_identifier') || '').toLowerCase().trim();
+    return activeEmail === 'yoeurn.seyha@diu.edu.kh' || activeIdentifier === 'yoeurn.seyha@diu.edu.kh' || activeIdentifier === 'seyha';
+  };
+
+  const handleDeleteUser = async (userToDelete: any, index: number) => {
+    const isTargetAdmin = isTargetUserAdmin(userToDelete);
+    const isCurrentActorAdmin = checkIsCurrentActorAdmin();
+
+    // STRICT RULE: General user CANNOT delete an admin user
+    if (!isCurrentActorAdmin && isTargetAdmin) {
+      alert(
+        language === 'kh'
+          ? '⚠️ អ្នកប្រើប្រាស់ទូទៅមិនមានសិទ្ធិលុបគណនី Admin បានទេ!'
+          : '⚠️ General users cannot delete an admin user!'
+      );
+      return;
+    }
+
+    const roleLabel = isTargetAdmin ? 'Admin' : (language === 'kh' ? 'អ្នកប្រើប្រាស់' : 'User');
+    const confirmMsg = language === 'kh'
+      ? `តើអ្នកពិតជាចង់លុបគណនី "${userToDelete.name || userToDelete.email}" (${roleLabel}) នេះមែនទេ?`
+      : `Are you sure you want to delete "${userToDelete.name || userToDelete.email}" (${roleLabel})?`;
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    // 1. Update in-memory state
+    const updated = dbUsersList.filter((_, i) => i !== index);
+    setDbUsersList(updated);
+
+    // 2. Update local storage
+    const local = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+    const targetEmail = (userToDelete.email || '').toLowerCase().trim();
+    const targetName = (userToDelete.name || '').toLowerCase().trim();
+    const filteredLocal = local.filter((u: any) => {
+      const uEmail = (u.email || '').toLowerCase().trim();
+      const uName = (u.name || '').toLowerCase().trim();
+      if (targetEmail && uEmail === targetEmail) return false;
+      if (targetName && uName === targetName) return false;
+      return true;
+    });
+    localStorage.setItem('wedding_registered_users', JSON.stringify(filteredLocal));
+
+    // 3. Delete from Firestore & REST API
+    try {
+      await deleteSystemUserFromFirebase(userToDelete);
+    } catch (e) {
+      console.warn('Error deleting user from database:', e);
+    }
+
+    alert(
+      language === 'kh'
+        ? `បានលុបគណនី ${userToDelete.name || userToDelete.email} ដោយជោគជ័យ!`
+        : `User ${userToDelete.name || userToDelete.email} deleted successfully!`
+    );
+  };
+
+  const [modalScrollTop, setModalScrollTop] = useState(0);
+  const [windowScrollY, setWindowScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleWindowScroll = () => {
+      setWindowScrollY(window.scrollY);
+    };
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleWindowScroll);
+  }, []);
+
+  const [adminPasscode, setAdminPasscode] = useState('');
+  const [loginEmailOrUsername, setLoginEmailOrUsername] = useState('');
+  const [showPasscodeText, setShowPasscodeText] = useState(false);
+  const [passcodeError, setPasscodeError] = useState('');
+  const [pendingCallback, setPendingCallback] = useState<(() => void) | null>(null);
+
+  const handleAdminLogin = (onSuccess?: () => void) => {
+    if (onSuccess) setPendingCallback(() => onSuccess);
+    setShowAdminLoginModal(true);
+  };
+
+  const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
+  const [signupName, setSignupName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPasscode, setSignupPasscode] = useState('');
+  const [showSignupPasscodeText, setShowSignupPasscodeText] = useState(false);
+  const [signupMessage, setSignupMessage] = useState('');
+
+  const handleSignupSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!signupName.trim() || !signupEmail.trim() || !signupPasscode.trim()) {
+      setSignupMessage(language === 'kh' ? 'សូមបំពេញព័ត៌មានឱ្យបានគ្រប់គ្រាន់' : 'Please fill in all fields');
+      return;
+    }
+    const newUser = { name: signupName, email: signupEmail, passcode: signupPasscode, createdAt: new Date().toISOString() };
+    
+    // 1. Insert into database (Firestore & REST API) for Security Verification
+    try {
+      await registerSystemUserInFirebase(newUser);
+    } catch (err) {
+      console.warn('Error saving system user to database:', err);
+    }
+
+    // 2. Also keep local storage in sync
+    const existingUsers = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+    const idx = existingUsers.findIndex((u: any) => u.email?.toLowerCase() === newUser.email.toLowerCase());
+    if (idx >= 0) existingUsers[idx] = newUser;
+    else existingUsers.push(newUser);
+    localStorage.setItem('wedding_registered_users', JSON.stringify(existingUsers));
+
+    setLocalAdminOverride(true);
+    localStorage.setItem('wedding_admin_override', 'true');
+    setShowAdminLoginModal(false);
+    setSignupName('');
+    setSignupEmail('');
+    setSignupPasscode('');
+    setSignupMessage('');
+    alert(language === 'kh' ? 'ចុះឈ្មោះ និងបញ្ចូលក្នុងមូលដ្ឋានទិន្នន័យបានជោគជ័យ!' : 'Sign up successful & saved to database for security verification!');
+    if (pendingCallback) {
+      pendingCallback();
+      setPendingCallback(null);
+    }
+  };
+
+  const handlePasscodeSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    
+    const identifier = loginEmailOrUsername.trim().toLowerCase();
+
+    // Fast Instant Check: Master Passcode / Admin Passcode
+    const isTargetAdmin =
+      (identifier === 'yoeurn.seyha@diu.edu.kh' || identifier === 'seyha') && adminPasscode === 'Admin@1111';
+
+    const isMasterPasscode =
+      adminPasscode === 'love2222' ||
+      adminPasscode === 'seyha2025' ||
+      adminPasscode === 'seyha' ||
+      adminPasscode === '2025' ||
+      adminPasscode === '1234';
+
+    const localUsers = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+    const localMatch = identifier
+      ? localUsers.find((u: any) => u.email?.toLowerCase() === identifier || u.name?.toLowerCase() === identifier)
+      : null;
+
+    if (isTargetAdmin || (isMasterPasscode && identifier !== 'yoeurn.seyha@diu.edu.kh' && identifier !== 'seyha') || (localMatch && localMatch.passcode === adminPasscode)) {
+      setLocalAdminOverride(true);
+      localStorage.setItem('wedding_admin_override', 'true');
+      if (loginEmailOrUsername.trim()) {
+        localStorage.setItem('wedding_logged_in_identifier', loginEmailOrUsername.trim());
+      }
+      setShowAdminLoginModal(false);
+      setAdminPasscode('');
+      setLoginEmailOrUsername('');
+      setPasscodeError('');
+      if (pendingCallback) {
+        pendingCallback();
+        setPendingCallback(null);
+      }
+      return;
+    }
+
+    // Secondary fast DB verification for non-local registered users
+    let dbUsers: any[] = [];
+    try {
+      dbUsers = await fetchSystemUsersFromFirebase();
+    } catch (e) {
+      // ignore
+    }
+    const existingUsers = [...localUsers];
+    for (const du of dbUsers) {
+      if (du && du.email && !existingUsers.some((u: any) => u.email?.toLowerCase() === du.email?.toLowerCase())) {
+        existingUsers.push(du);
+      }
+    }
+
+    // Strict password check for yoeurn.seyha@diu.edu.kh
+    if ((identifier === 'yoeurn.seyha@diu.edu.kh' || identifier === 'seyha') && adminPasscode !== 'Admin@1111') {
+      setPasscodeError('លេខសម្ងាត់មិនត្រឹមត្រូវ');
+      return;
+    }
+
+    const matchedAccount = identifier 
+      ? existingUsers.find((u: any) => u.email?.toLowerCase() === identifier || u.name?.toLowerCase() === identifier) 
+      : null;
+
+    if (identifier && existingUsers.length > 0 && !matchedAccount) {
+      setPasscodeError(language === 'kh' ? 'អ៊ីមែល ឬ ឈ្មោះអ្នកប្រើប្រាស់នេះមិនទាន់មានក្នុងមូលដ្ឋានទិន្នន័យទេ។ សូមចុះឈ្មោះជាមុនសិន!' : 'This email or username is not found in database records. Please sign up first!');
+      return;
+    }
+
+    const userMatch = matchedAccount 
+      ? matchedAccount.passcode === adminPasscode 
+      : existingUsers.find((u: any) => u.passcode === adminPasscode);
+
+    if (userMatch) {
+      setLocalAdminOverride(true);
+      localStorage.setItem('wedding_admin_override', 'true');
+      if (loginEmailOrUsername.trim()) {
+        localStorage.setItem('wedding_logged_in_identifier', loginEmailOrUsername.trim());
+      }
+      setShowAdminLoginModal(false);
+      setAdminPasscode('');
+      setLoginEmailOrUsername('');
+      setPasscodeError('');
+      if (pendingCallback) {
+        pendingCallback();
+        setPendingCallback(null);
+      }
+    } else {
+      setPasscodeError('លេខសម្ងាត់មិនត្រឹមត្រូវ');
+    }
+  };
+
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState('');
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    setGoogleAuthError('');
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
+        setLocalAdminOverride(true);
+        localStorage.setItem('wedding_admin_override', 'true');
+        if (result.user.email || result.user.displayName) {
+          localStorage.setItem('wedding_logged_in_identifier', result.user.email || result.user.displayName || 'Google User');
+        }
+        setShowAdminLoginModal(false);
+        setShowForgotPasswordModal(false);
+        if (pendingCallback) {
+          pendingCallback();
+          setPendingCallback(null);
+        }
+
+        // Non-blocking background sync to Firestore & local DB for zero UI latency
+        (async () => {
+          try {
+            await setDoc(
+              doc(db, 'users', result.user.uid),
+              {
+                uid: result.user.uid,
+                email: result.user.email || '',
+                displayName: result.user.displayName || '',
+                photoURL: result.user.photoURL || '',
+                role: result.user.email?.toLowerCase() === 'yoeurn.seyha@diu.edu.kh' ? 'admin' : 'editor',
+                lastLoginAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+
+            const googleSystemUser = {
+              name: result.user.displayName || 'Google User',
+              email: result.user.email || '',
+              passcode: 'google-auth-verified',
+              createdAt: new Date().toISOString()
+            };
+            await registerSystemUserInFirebase(googleSystemUser);
+
+            const existingUsers = JSON.parse(localStorage.getItem('wedding_registered_users') || '[]');
+            if (result.user.email && !existingUsers.some((u: any) => u.email?.toLowerCase() === result.user.email?.toLowerCase())) {
+              existingUsers.push(googleSystemUser);
+              localStorage.setItem('wedding_registered_users', JSON.stringify(existingUsers));
+            }
+          } catch (e) {
+            console.warn('Background Google user sync notice:', e);
+          }
+        })();
+      }
+    } catch (popupErr: any) {
+      console.warn('Popup login notice, trying fallback / error:', popupErr);
+      if (popupErr.code === 'auth/popup-closed-by-user') {
+        setGoogleAuthError('ការចូលត្រូវបានបោះបង់ (Sign-in popup closed).');
+      } else if (popupErr.code === 'auth/unauthorized-domain') {
+        setGoogleAuthError('Domain នេះមិនទាន់បាន add ក្នុង Firebase Console ទេ។ សូមប្រើលេខសម្ងាត់ love2222 ខាងលើ។');
+      } else {
+        setGoogleAuthError(popupErr.message || 'មានបញ្ហាក្នុងការចូលតាម Google');
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const [isFromShareLink, setIsFromShareLink] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return Boolean(params.get('name') || params.get('guest') || params.get('share'));
+    }
+    return false;
+  });
+
+  const isAdmin = Boolean(authUser) || localAdminOverride;
+  const isViewer = !isAdmin || isFromShareLink;
+
+  const handleOpenEditor = (tab: TabType = 'couple') => {
+    setEditorInitialTab(tab);
+    if (isAdmin) {
+      setShowEditorModal(true);
+    } else {
+      handleAdminLogin(() => setShowEditorModal(true));
+    }
+  };
+
+  const handleOpenAddGuest = () => {
+    if (isAdmin) {
+      setShowAddGuestModal(true);
+    } else {
+      handleAdminLogin(() => setShowAddGuestModal(true));
+    }
+  };
+
+  const [refreshValidationFeedback, setRefreshValidationFeedback] = useState<string | null>(null);
+
+  const handleRefreshWithValidation = async () => {
+    const validatedType = validateCurrentTemplateType(event);
+    const currentId = event.id || localStorage.getItem('wedding_last_active_template_id') || 'cmgrawhnk0003le0434762j7n';
+
+    const typeLabelKh = {
+      wedding: 'មង្គលការ (Wedding)',
+      engagement: 'ភ្ជាប់ពាក្យ (Engagement)',
+      housewarming: 'ឡើងគេហដ្ឋាន (Housewarming)',
+      birthday: 'ខួបកំណើត (Birthday)',
+      anniversary: 'ខួបមង្គលការ (Anniversary)',
+    }[validatedType];
+
+    const validatedEvent: WeddingEvent = {
+      ...event,
+      eventType: validatedType,
+      updatedAt: event.updatedAt || new Date().toISOString(),
+    };
+
+    try {
+      localStorage.setItem('wedding_custom_event_data', JSON.stringify(validatedEvent));
+      localStorage.setItem(`wedding_template_saved_${currentId}`, JSON.stringify(validatedEvent));
+      localStorage.setItem(`wedding_template_type_${validatedType}`, JSON.stringify(validatedEvent));
+      localStorage.setItem('wedding_last_active_template_id', currentId);
+      localStorage.setItem('wedding_last_template_type', validatedType);
+
+      // Persist to server API
+      fetch('/api/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validatedEvent),
+      }).catch(() => {});
+    } catch (e) {
+      console.warn('Error saving during refresh validation:', e);
+    }
+
+    setEvent(validatedEvent);
+    setRefreshValidationFeedback(language === 'kh' ? `កំពុងផ្ទុកទំព័រឡើងវិញ (${typeLabelKh})...` : `Reloading page (${typeLabelKh})...`);
+    
+    setTimeout(() => {
+      window.location.reload();
+    }, 600);
+  };
+
+  // Read guest name and event ID from URL query parameters, and fetch latest event from server
+  const [guestName, setGuestName] = useState('Your Name');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const iParam = params.get('i');
+      const nameParam = params.get('name');
+      const guestParam = params.get('guest');
+      const toParam = params.get('to');
+      const urlIdParam = params.get('id');
+      const urlTypeParam = params.get('type');
+
+      const activeTemplateId = localStorage.getItem('wedding_last_active_template_id');
+      let storedEventId: string | null = null;
+      try {
+        const stored = localStorage.getItem('wedding_custom_event_data');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.id) storedEventId = parsed.id;
+        }
+      } catch (e) {}
+
+      // Preserve the user's chosen template type across refreshes
+      const fetchId = urlIdParam || urlTypeParam || activeTemplateId || storedEventId || 'cmgrawhnk0003le0434762j7n';
+
+      const foundGuest = iParam || guestParam || nameParam || toParam;
+      if (foundGuest) {
+        setGuestName(foundGuest);
+        setIsFromShareLink(true);
+        // Update document title for personalized browser tab and share
+        document.title = `${event.name || 'លិខិតអញ្ជើញឌីជីថល'} - សូមគោរពអញ្ជើញ ${foundGuest}`;
+      } else {
+        setGuestName('Your Name');
+        document.title = event.name || 'លិខិតអញ្ជើញឌីជីថល';
+      }
+
+      // Check if URL contains #template hash
+      const checkHash = () => {
+        if (window.location.hash === '#template') {
+          setShowEnvelopeModal(false);
+          setHasOpenedEnvelope(true);
+          setShowEditorModal(true);
+        }
+      };
+      checkHash();
+      window.addEventListener('hashchange', checkHash);
+
+      // Test Firestore connection on boot
+      testFirestoreConnection();
+
+      // Subscribe to real-time event configuration changes from Firestore using the chosen template ID
+      const unsubscribeEvent = subscribeToEvent(fetchId, (fbEvent) => {
+        if (fbEvent) {
+          const sanitized = sanitizeWeddingEvent(fbEvent);
+          setEvent(sanitized);
+          try {
+            localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+          } catch (e) {
+            // ignore
+          }
+        }
+      });
+
+      // Fetch latest synced event data from Firebase Firestore & server API
+      const fetchServerData = async () => {
+        try {
+          const fbEvent = await fetchEventFromFirebase(fetchId);
+          if (fbEvent) {
+            const sanitized = sanitizeWeddingEvent(fbEvent);
+            setEvent(sanitized);
+            try {
+              localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+            } catch (e) {}
+            return;
+          }
+        } catch (e) {
+          console.warn('Firebase event fetch fallback to server:', e);
+        }
+
+        try {
+          const res = await fetch(`/api/event?id=${encodeURIComponent(fetchId)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && data.event) {
+              const sanitized = sanitizeWeddingEvent(data.event);
+              setEvent(sanitized);
+              try {
+                localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+              } catch (e) {}
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not fetch server event:', err);
+        }
+
+        // If neither Firestore nor server API had the event, load the template preset directly
+        const preset = findTemplatePreset(fetchId);
+        if (preset) {
+          let templateEvent = preset.sampleEvent;
+          const storedTemplate = localStorage.getItem(`wedding_template_saved_${fetchId}`);
+          if (storedTemplate) {
+            try {
+              templateEvent = JSON.parse(storedTemplate);
+            } catch {}
+          }
+          const sanitized = sanitizeWeddingEvent({
+            ...templateEvent,
+            eventType: preset.type,
+          });
+          setEvent(sanitized);
+          try {
+            localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+            localStorage.setItem('wedding_last_active_template_id', fetchId);
+            localStorage.setItem('wedding_last_template_type', preset.type);
+          } catch {}
+        }
+      };
+
+      fetchServerData();
+
+      return () => {
+        window.removeEventListener('hashchange', checkHash);
+        if (unsubscribeEvent) unsubscribeEvent();
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    const eventType = ((event as any).eventType || '').toLowerCase();
+    const eventIdLower = (event.id || '').toLowerCase();
+    const eventNameLower = (event.name || '').toLowerCase();
+
+    const isBday = eventType === 'birthday' || eventIdLower.includes('birthday') || eventNameLower.includes('ខួប') || eventNameLower.includes('birthday');
+    const isHouse = eventType === 'housewarming' || eventIdLower.includes('housewarming') || eventNameLower.includes('ឡើងផ្ទះ') || eventNameLower.includes('house');
+    const isEngage = eventType === 'engagement' || eventIdLower.includes('engagement') || eventNameLower.includes('ភ្ជាប់ពាក្យ') || eventNameLower.includes('engage');
+
+    const hostKhmerName = event.groom?.trim() || '';
+
+    let eventName = event.name;
+    if (isBday) {
+      // Direct information from ម្ចាស់ខួប (Host Name)
+      eventName = hostKhmerName ? `ពិធីខួបកំណើត ${hostKhmerName}` : (event.name || 'ពិធីខួបកំណើត');
+    } else if (isHouse) {
+      eventName = hostKhmerName ? `ពិធីឡើងគេហដ្ឋានថ្មី ${hostKhmerName}` : (event.name || 'ពិធីឡើងគេហដ្ឋានថ្មី');
+    } else if (isEngage) {
+      eventName = (event.groom && event.bride) ? `ពិធីភ្ជាប់ពាក្យ ${event.groom} & ${event.bride}` : (event.name || 'ពិធីភ្ជាប់ពាក្យ');
+    } else if (event.singlePerson) {
+      eventName = hostKhmerName ? `កម្មវិធី ${hostKhmerName}` : (event.name || 'លិខិតអញ្ជើញឌីជីថល');
+    } else if (event.groom && event.bride) {
+      eventName = `អាពាហ៍ពិពាហ៍ ${event.groom} & ${event.bride}`;
+    } else {
+      eventName = event.name || 'លិខិតអញ្ជើញឌីជីថល';
+    }
+
+    let displayTitle = eventName;
+    if (guestName && guestName !== 'Your Name') {
+      displayTitle = `${eventName} - សូមគោរពអញ្ជើញ ${guestName}`;
+    }
+
+    document.title = displayTitle;
+
+    // Dynamically update document meta tags for shared preview & browser
+    const updateMetaTag = (attr: string, key: string, content: string) => {
+      let tag = document.querySelector(`meta[${attr}="${key}"]`);
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute(attr, key);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute('content', content);
+    };
+
+    const desc = `សូមគោរពអញ្ជើញ ${
+      guestName && guestName !== 'Your Name' ? guestName : 'ភ្ញៀវកិត្តិយស'
+    } ចូលរួមជាអធិបតី និងប្រសិទ្ធពរជ័យ ${
+      isBday
+        ? `ក្នុងពិធីខួបកំណើត ${event.groom || eventName}`
+        : isHouse
+        ? `ក្នុងពិធីឡើងគេហដ្ឋានថ្មី ${event.groom || eventName}`
+        : isEngage
+        ? `ក្នុងពិធីភ្ជាប់ពាក្យ ${event.groom} & ${event.bride}`
+        : event.groom && event.bride && !event.singlePerson
+        ? `ក្នុងពិធីមង្គលការរវាង ${event.groom} & ${event.bride}`
+        : event.groom
+        ? `ក្នុងកម្មវិធី ${event.groom}`
+        : ''
+    } នៅថ្ងៃទី ${event.date || ''}`;
+
+    let coverImg =
+      event.cover_image ||
+      event.image ||
+      event.config?.photo_gallary?.photo1;
+
+    if (!coverImg || (isBday && coverImg.includes('491657278')) || (isHouse && coverImg.includes('491657278'))) {
+      coverImg = getCategoryCoverImage(event.eventType || event.id);
+    }
+
+    updateMetaTag('name', 'description', desc);
+    updateMetaTag('property', 'og:title', displayTitle);
+    updateMetaTag('property', 'og:description', desc);
+    updateMetaTag('property', 'og:image', coverImg);
+    updateMetaTag('name', 'twitter:title', displayTitle);
+    updateMetaTag('name', 'twitter:description', desc);
+    updateMetaTag('name', 'twitter:image', coverImg);
+  }, [event.name, event.groom, event.bride, event.singlePerson, event.date, event.image, event.cover_image, event.eventType, event.id, guestName, isFromShareLink]);
+
+  const config = event.config;
+  const textContent = language === 'kh' ? config.invitation_kh : config.invitation_en;
+
+  const isBirthday = ((event as any).eventType || '').toLowerCase() === 'birthday' || event.id?.includes('birthday') || event.name?.includes('ខួបកំណើត') || event.name?.includes('Birthday');
+  const isEngagement = ((event as any).eventType || '').toLowerCase() === 'engagement' || event.id?.includes('engagement') || event.name?.includes('ភ្ជាប់ពាក្យ') || event.name?.includes('Engagement');
+  const isHousewarming = ((event as any).eventType || '').toLowerCase() === 'housewarming' || event.id?.includes('housewarming') || event.name?.includes('ឡើងផ្ទះ') || event.name?.includes('House');
+
+  const badgeKh = isBirthday
+    ? 'ខួបកំណើត'
+    : isEngagement
+    ? 'ភ្ជាប់ពាក្យ'
+    : isHousewarming
+    ? 'ឡើងផ្ទះថ្មី'
+    : 'មង្គលការ';
+
+  const badgeEn = isBirthday
+    ? 'BIRTHDAY CELEBRATION'
+    : isEngagement
+    ? 'ENGAGEMENT CELEBRATION'
+    : isHousewarming
+    ? 'HOUSEWARMING CELEBRATION'
+    : 'WEDDING CELEBRATION';
+
+  const toggleLanguage = () => {
+    setLanguage(prev => (prev === 'kh' ? 'en' : 'kh'));
+  };
+
+  // 1.5x Auto-Scroll Engine after opening envelope
+  const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const autoScrollActiveRef = useRef<boolean>(false);
+  const scrollPosRef = useRef<number>(0);
+
+  // Auto-scroll loop when envelope is opened
+  useEffect(() => {
+    if (!hasOpenedEnvelope) {
+      if (autoScrollRafRef.current) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
+      autoScrollActiveRef.current = false;
+      setIsAutoScrolling(false);
+      return;
+    }
+
+    // 1.5x speed constant: ~120 px/sec
+    const SPEED_1_5X = 120;
+    let lastTimestamp: number | null = null;
+
+    const startTimeout = setTimeout(() => {
+      autoScrollActiveRef.current = true;
+      setIsAutoScrolling(true);
+      lastTimestamp = null;
+      scrollPosRef.current = window.scrollY || document.documentElement.scrollTop || 0;
+
+      const step = (timestamp: number) => {
+        if (!autoScrollActiveRef.current) return;
+
+        if (lastTimestamp === null) {
+          lastTimestamp = timestamp;
+        }
+        const delta = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
+        lastTimestamp = timestamp;
+
+        const maxScroll = Math.max(
+          document.documentElement.scrollHeight,
+          document.body.scrollHeight
+        ) - window.innerHeight;
+
+        scrollPosRef.current += SPEED_1_5X * delta;
+
+        if (scrollPosRef.current >= maxScroll - 6) {
+          window.scrollTo(0, maxScroll);
+          autoScrollActiveRef.current = false;
+          setIsAutoScrolling(false);
+          return;
+        }
+
+        window.scrollTo(0, scrollPosRef.current);
+        autoScrollRafRef.current = requestAnimationFrame(step);
+      };
+
+      autoScrollRafRef.current = requestAnimationFrame(step);
+    }, 700);
+
+    const onUserScrollGesture = () => {
+      scrollPosRef.current = window.scrollY || document.documentElement.scrollTop || 0;
+      if (!autoScrollActiveRef.current) return;
+      autoScrollActiveRef.current = false;
+      setIsAutoScrolling(false);
+      if (autoScrollRafRef.current) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
+    };
+
+    window.addEventListener('wheel', onUserScrollGesture, { passive: true });
+    window.addEventListener('touchmove', onUserScrollGesture, { passive: true });
+
+    return () => {
+      clearTimeout(startTimeout);
+      if (autoScrollRafRef.current) cancelAnimationFrame(autoScrollRafRef.current);
+      window.removeEventListener('wheel', onUserScrollGesture);
+      window.removeEventListener('touchmove', onUserScrollGesture);
+    };
+  }, [hasOpenedEnvelope]);
+
+  const toggleManualAutoScroll = () => {
+    if (isAutoScrolling) {
+      autoScrollActiveRef.current = false;
+      setIsAutoScrolling(false);
+      if (autoScrollRafRef.current) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
+    } else {
+      const maxScroll = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight
+      ) - window.innerHeight;
+
+      const currentY = window.scrollY || document.documentElement.scrollTop || 0;
+      if (currentY >= maxScroll - 15) {
+        window.scrollTo(0, 0);
+        scrollPosRef.current = 0;
+      } else {
+        scrollPosRef.current = currentY;
+      }
+
+      autoScrollActiveRef.current = true;
+      setIsAutoScrolling(true);
+      let lastTimestamp: number | null = null;
+      const SPEED_1_5X = 120;
+
+      const step = (timestamp: number) => {
+        if (!autoScrollActiveRef.current) return;
+        if (lastTimestamp === null) lastTimestamp = timestamp;
+        const delta = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
+        lastTimestamp = timestamp;
+
+        const currentMax = Math.max(
+          document.documentElement.scrollHeight,
+          document.body.scrollHeight
+        ) - window.innerHeight;
+
+        scrollPosRef.current += SPEED_1_5X * delta;
+
+        if (scrollPosRef.current >= currentMax - 6) {
+          window.scrollTo(0, currentMax);
+          autoScrollActiveRef.current = false;
+          setIsAutoScrolling(false);
+          return;
+        }
+
+        window.scrollTo(0, scrollPosRef.current);
+        autoScrollRafRef.current = requestAnimationFrame(step);
+      };
+
+      autoScrollRafRef.current = requestAnimationFrame(step);
+    }
+  };
+
+  const handleEnvelopeOpen = () => {
+    setHasOpenedEnvelope(true);
+    setShowEnvelopeModal(false);
+    window.scrollTo(0, 0);
+    scrollPosRef.current = 0;
+  };
+
+  const handleSaveEvent = async (updatedEvent: WeddingEvent, refreshEnvelope: boolean = true) => {
+    const validatedType = updatedEvent.eventType || validateCurrentTemplateType(updatedEvent);
+    const userEventId = authUser ? `event_${authUser.uid}` : (updatedEvent.id || 'cmgrawhnk0003le0434762j7n');
+    const preparedEvent: WeddingEvent = {
+      ...updatedEvent,
+      id: userEventId,
+      ownerId: authUser ? authUser.uid : updatedEvent.ownerId,
+      ownerEmail: authUser ? (authUser.email || '') : updatedEvent.ownerEmail,
+      eventType: validatedType,
+      updatedAt: updatedEvent.updatedAt || new Date().toISOString(),
+    };
+
+    setEvent(preparedEvent);
+    if (refreshEnvelope) {
+      setHasOpenedEnvelope(false);
+      setShowEnvelopeModal(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    // 1. Instant local cache save (active event, per-template cache, per-template-type cache, and active design settings)
+    try {
+      localStorage.setItem('wedding_custom_event_data', JSON.stringify(preparedEvent));
+      if (authUser) {
+        localStorage.setItem(`wedding_user_event_${authUser.uid}`, JSON.stringify(preparedEvent));
+      }
+      if (preparedEvent.id) {
+        localStorage.setItem(`wedding_template_saved_${preparedEvent.id}`, JSON.stringify(preparedEvent));
+        localStorage.setItem('wedding_last_active_template_id', preparedEvent.id);
+      }
+      if (validatedType) {
+        localStorage.setItem(`wedding_template_type_${validatedType}`, JSON.stringify(preparedEvent));
+        localStorage.setItem('wedding_last_template_type', validatedType);
+      }
+      if (preparedEvent.config) {
+        localStorage.setItem('wedding_last_custom_design_config', JSON.stringify(preparedEvent.config));
+      }
+    } catch (e) {
+      console.warn('Failed to save local event data:', e);
+    }
+
+    // 2. Firebase Firestore Database Sync
+    saveEventToFirebase(preparedEvent).catch(err => {
+      console.warn('Firebase save fallback:', err);
+    });
+
+    // 3. Server API Sync so anyone who opens the shared URL sees all updates
+    try {
+      const response = await fetch('/api/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preparedEvent),
+      });
+      if (!response.ok) {
+        console.error('Server responded with error:', response.status);
+      }
+    } catch (err) {
+      console.error('Failed to sync event with server:', err);
+    }
+  };
+
+  const handleResetEvent = async () => {
+    setEvent(WEDDING_EVENT);
+    try {
+      localStorage.removeItem('wedding_custom_event_data');
+      await fetch('/api/event/reset', { method: 'POST' });
+    } catch (e) {
+      console.error('Failed to reset event data:', e);
+    }
+  };
+
+  const handleUpdateEnvelopeHeaderImage = (url: string) => {
+    const updatedEvent = {
+      ...event,
+      config: {
+        ...event.config,
+        envelope_header_image: url,
+      },
+    };
+    handleSaveEvent(updatedEvent);
+  };
+
+  // Gallery Photos
+  const photosList =
+    config.galleryPhotos && config.galleryPhotos.length > 0
+      ? config.galleryPhotos
+      : [
+          config.photo_gallary.photo1,
+          config.photo_gallary.photo2,
+          config.photo_gallary.photo3,
+          config.photo_gallary.photo4,
+        ].filter(Boolean);
+
+  const rootBgColor = theme === 'light' ? '#f4f1ea' : theme === 'gray' ? '#1b1e25' : '#141210';
+  const rootTextColor = theme === 'light' ? 'text-neutral-900' : theme === 'gray' ? 'text-slate-100' : 'text-[#e5e0d8]';
+  const mainCardBgClass = theme === 'light' ? 'bg-[#faf8f5] text-neutral-900 border-amber-500/30' : theme === 'gray' ? 'bg-[#1b1e25] text-slate-100 border-slate-700/50' : 'bg-black text-[#e5e0d8] border-amber-500/20';
+
+  const currentTemplateTypeInfo = (() => {
+    const id = (event.id || '').toLowerCase();
+    const type = ((event as any).eventType || '').toLowerCase();
+    const name = (event.name || '').toLowerCase();
+
+    if (type === 'housewarming' || id.includes('housewarming') || name.includes('ឡើងផ្ទះ') || name.includes('housewarming')) {
+      return {
+        type: 'housewarming',
+        label: language === 'kh' ? 'ឡើងផ្ទះ' : 'Housewarming',
+        icon: Home,
+      };
+    }
+    if (type === 'engagement' || id.includes('engagement') || name.includes('ភ្ជាប់ពាក្យ')) {
+      return {
+        type: 'engagement',
+        label: language === 'kh' ? 'ភ្ជាប់ពាក្យ' : 'Engagement',
+        icon: Sparkles,
+      };
+    }
+    if (type === 'anniversary' || id.includes('anniversary') || name.includes('ខួបអាពាហ៍ពិពាហ៍') || name.includes('anniversary')) {
+      return {
+        type: 'anniversary',
+        label: language === 'kh' ? 'ខួបអាពាហ៍ពិពាហ៍' : 'Anniversary',
+        icon: Crown,
+      };
+    }
+    if (id.includes('modern-wedding') || name.includes('អាពាហ៍ពិពាហ៍បែបសម័យ') || name.includes('មង្គលការបែបសម័យ') || name.includes('មង្គលការសម័យ')) {
+      return {
+        type: 'wedding',
+        label: language === 'kh' ? 'មង្គលការសម័យ' : 'Modern Wedding',
+        icon: Sparkles,
+      };
+    }
+    if (type === 'birthday' || id.includes('birthday') || event.singlePerson || name.includes('ខួបកំណើត') || name.includes('birthday')) {
+      return {
+        type: 'birthday',
+        label: language === 'kh' ? 'ខួបកំណើត' : 'Birthday',
+        icon: Cake,
+      };
+    }
+    return {
+      type: 'wedding',
+      label: language === 'kh' ? 'មង្គលការ' : 'Wedding',
+      icon: Heart,
+    };
+  })();
+
+  const currentTemplateTypeLabel = currentTemplateTypeInfo.label;
+
+  return (
+    <div
+      data-theme={theme}
+      style={{
+        backgroundColor: rootBgColor,
+        backgroundImage: undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+      className={`min-h-screen w-full ${rootTextColor} flex justify-center selection:bg-amber-400 selection:text-amber-950 font-khmer relative transition-colors duration-500 ease-in-out ${
+        isThemeTransitioning ? 'theme-crossfade-active' : ''
+      }`}
+    >
+      {/* Smooth Theme Cross-Fade Transition Overlay */}
+      <AnimatePresence>
+        {isThemeTransitioning && (
+          <motion.div
+            key={`theme-crossfade-curtain-${theme}`}
+            initial={{ opacity: 0.3 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className={`fixed inset-0 pointer-events-none z-[9999] transition-colors duration-500 ${
+              theme === 'light' ? 'bg-[#faf8f5]/40' : 'bg-[#141210]/40'
+            }`}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Background backdrop blur / shade if main_background is set */}
+      {!config.hide_main_background && (config.main_background || config.cover_background || config.event_location) && (
+        <div className={`fixed inset-0 ${theme === 'light' ? 'bg-white/40' : theme === 'gray' ? 'bg-black/50' : 'bg-black/35'} backdrop-blur-[1px] pointer-events-none z-0 transition-colors duration-500 ease-in-out`} />
+      )}
+
+      {/* Royal Opening Envelope Modal */}
+      <EnvelopeModal
+        isOpen={showEnvelopeModal}
+        onOpen={handleEnvelopeOpen}
+        guestName={guestName}
+        onUpdateGuestName={newName => setGuestName(newName)}
+        onOpenAddGuestModal={handleOpenAddGuest}
+        id={event.id}
+        eventType={event.eventType}
+        name={event.name}
+        groom={event.groom}
+        bride={event.bride}
+        groomEn={event.groomEn}
+        brideEn={event.brideEn}
+        singlePerson={event.singlePerson}
+        language={language}
+        isAdmin={!isViewer}
+        coverBackground={config.hide_cover_background ? '' : (config.cover_background || 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/free-background.jpg')}
+        primaryColor={config.primaryColor || '#f5b80f'}
+        textColor={config.textColor || '#f5b80f'}
+        envelopeFrame={config.envelope_frame}
+        envelopeHeaderImage={config.envelope_header_image}
+        onUpdateEnvelopeHeaderImage={handleUpdateEnvelopeHeaderImage}
+        mainTitleKh={config.invitation_kh?.main_title}
+        mainTitleEn={config.invitation_en?.main_title || config.invitation_en?.subtitle}
+        invitationSubtitleKh={config.invitation_kh?.subtitle}
+        invitationSubtitleEn={config.invitation_en?.subtitle}
+        invitationTitleKh={config.invitation_kh?.invitation_title}
+        invitationTitleEn={config.invitation_en?.invitation_title}
+        coverSubtitleKh={(currentTemplateTypeInfo.type === 'birthday' && config.anniversary_milestone) 
+          ? (config.anniversary_milestone.startsWith('រីករាយ') ? config.anniversary_milestone : `រីករាយ${config.anniversary_milestone}`) 
+          : (currentTemplateTypeInfo.type === 'anniversary')
+          ? (config.cover_subtitle_kh || `រីករាយខួបអាពាហ៍ពិពាហ៍ ${config.anniversary_milestone || ''}`)
+          : (config.cover_subtitle_kh || config.invitation_kh?.main_title || (currentTemplateTypeInfo.type === 'birthday' ? 'រីករាយពិធីខួបកំណើត' : 'សិរីសួស្តី អាពាហ៍ពិពាហ៍'))}
+        coverSubtitleEn={(currentTemplateTypeInfo.type === 'birthday' && config.anniversary_milestone_en) 
+          ? config.anniversary_milestone_en 
+          : (currentTemplateTypeInfo.type === 'anniversary')
+          ? (config.cover_subtitle_en || `Happy ${config.anniversary_milestone_en || ''} Wedding Anniversary`)
+          : (config.cover_subtitle_en || config.invitation_en?.subtitle)}
+        coverEnNameColor={config.cover_en_name_color}
+        coverEnFontFamily={config.cover_en_font_family}
+        eventDate={event.date || config.invitation_en?.date_time || config.invitation_kh?.date_time}
+        eventTime={event.eating_time || event.startTime || ''}
+        eventLocation={event.location || config.event_location || config.invitation_en?.location || config.invitation_kh?.location}
+        titleTextShape={config.title_text_shape}
+        guestNameColor={config.guestNameColor || '#364153'}
+        guestNameFontFamily={config.guest_name_font_family}
+        guestNameFontSize={config.guest_name_font_size}
+        envelopeThemeColor={config.envelope_theme_color}
+        guestFrameStyle={config.guest_frame_style}
+        onOpenDesignTab={() => {
+          setEditorInitialTab('design');
+          setShowEditorModal(true);
+        }}
+        onToggleLanguage={toggleLanguage}
+        theme={theme}
+      />
+
+      {/* Floating Top Left Controls: Language & Theme */}
+      <div className="fixed top-4 left-4 z-50 flex flex-wrap items-center gap-2">
+        <LanguageToggle currentLanguage={language} onToggle={toggleLanguage} theme={theme} />
+        <ThemeToggle currentTheme={theme} onChangeTheme={handleThemeChange} language={language} />
+      </div>
+
+      {/* Floating Top Right Controls: Music Player, Share & Edit Button */}
+      <AudioPlayer
+        audioUrl={config.background_music}
+        hasOpenedEnvelope={hasOpenedEnvelope}
+        language={language}
+        theme={theme}
+      />
+
+      <div className="fixed top-16 right-2 sm:right-4 z-40 flex flex-col items-end gap-1.5 sm:gap-2 max-w-[calc(100vw-1rem)]">
+        {/* Admin and Auth Controls */}
+        {isAdmin ? (
+          <>
+            {/* PlanEssential Event Template Manager & Creator Button */}
+            <motion.button
+              id="planessential-template-btn"
+              type="button"
+              onClick={() => setShowEventTypeModal(true)}
+              onTap={() => setShowEventTypeModal(true)}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.94 }}
+              className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-300/90 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 font-bold shadow-[0_4px_22px_rgba(245,158,11,0.5)] backdrop-blur-md hover:from-amber-300 hover:to-amber-100 transition-all ring-2 ring-amber-400/70 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer select-none"
+              title={language === 'kh' ? `គ្រប់គំរូប្លង់ទាំងអស់ / All Templates (${currentTemplateTypeLabel})` : `All Templates: ${currentTemplateTypeLabel}`}
+            >
+              <div className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-950/20 group-hover:bg-amber-950/30 transition-colors shadow-xs">
+                <currentTemplateTypeInfo.icon className="w-3.5 h-3.5 text-amber-950 shrink-0" />
+              </div>
+              <span className={`text-xs sm:text-[13.5px] font-bold whitespace-nowrap tracking-tight ${language === 'kh' ? 'font-khmer' : 'font-sans'}`}>
+                {language === 'kh' ? 'គ្រប់គំរូប្លង់' : 'All Templates'}
+              </span>
+              <span
+                id="active-template-type-badge"
+                className="inline-flex items-center gap-1 text-[10.5px] sm:text-[11.5px] font-khmer px-2 py-0.5 sm:px-2.5 rounded-full bg-amber-950/30 text-amber-950 font-bold border border-amber-950/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] transition-all tracking-wide ring-1 ring-amber-900/10"
+              >
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-700 animate-pulse inline-block ring-2 ring-emerald-700/40" />
+                {currentTemplateTypeLabel}
+              </span>
+            </motion.button>
+
+            {/* Edit Event / Template & Settings Button */}
+            <motion.button
+              id="open-editor-btn"
+              onClick={() => handleOpenEditor()}
+              onTap={() => handleOpenEditor()}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.94 }}
+              className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-300/90 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 font-bold shadow-[0_4px_22px_rgba(245,158,11,0.5)] backdrop-blur-md hover:from-amber-300 hover:to-amber-100 transition-all ring-2 ring-amber-400/70 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer select-none"
+              title={language === 'kh' ? 'ការកំណត់ & កែសម្រួល / Settings & Edit' : 'Settings & Edit All'}
+            >
+              <div className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-950/20 group-hover:bg-amber-950/30 transition-colors shadow-xs">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-950 shrink-0" />
+              </div>
+              <span className={`text-xs sm:text-[13.5px] font-bold whitespace-nowrap tracking-tight ${language === 'kh' ? 'font-khmer' : 'font-sans'}`}>
+                {language === 'kh' ? 'ការកំណត់ & កែ' : 'Settings & Edit'}
+              </span>
+              <span className="absolute -top-1 -right-1 flex h-3 w-3" title="Server Synced">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-[#141210]"></span>
+              </span>
+            </motion.button>
+
+            {/* Add Guest Button */}
+            <motion.button
+              id="add-guest-btn"
+              onClick={handleOpenAddGuest}
+              onTap={handleOpenAddGuest}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.94 }}
+              className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-400/70 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 font-bold shadow-2xl backdrop-blur-md hover:from-amber-300 hover:to-amber-200 transition-all ring-2 ring-amber-400/40 whitespace-nowrap"
+              title={language === 'kh' ? 'បន្ថែមឈ្មោះភ្ញៀវលើលិខិតអញ្ជើញ' : 'Add Guest'}
+            >
+              <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-950 shrink-0" />
+              <span className={`font-bold text-xs sm:text-[14px] whitespace-nowrap ${language === 'kh' ? 'font-khmer' : 'font-sans'}`}>
+                {language === 'kh' ? 'បន្ថែមភ្ញៀវ' : 'Add Guest'}
+              </span>
+            </motion.button>
+
+            {/* Logout Button */}
+            <motion.button
+              onClick={() => {
+                setLocalAdminOverride(false);
+                localStorage.removeItem('wedding_admin_override');
+                localStorage.removeItem('wedding_logged_in_identifier');
+                auth.signOut();
+              }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.94 }}
+              className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-red-500/50 bg-gradient-to-br from-black/95 via-black/95 to-black/95 text-red-400 shadow-[0_4px_18px_rgba(0,0,0,0.5)] backdrop-blur-md hover:border-red-400 hover:text-red-300 transition-all ring-1 ring-red-500/20"
+              title={language === 'kh' ? 'ចាកចេញ / Logout' : 'Logout'}
+            >
+              <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400 group-hover:text-red-300" />
+              <span className="text-xs sm:text-[14px] font-khmer font-bold transition-colors whitespace-nowrap">
+                {language === 'kh' ? 'ចាកចេញ' : 'Logout'}
+              </span>
+            </motion.button>
+          </>
+        ) : !isFromShareLink ? (
+          /* Login Button - Only visible if not admin and not a guest viewing a shared link */
+          <motion.button
+            id="admin-login-btn"
+            type="button"
+            onClick={() => handleAdminLogin()}
+            onTap={() => handleAdminLogin()}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.94 }}
+            style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+            className="group relative z-50 flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-emerald-500/60 bg-gradient-to-br from-black/95 via-[#0e1611]/95 to-[#0d1c14]/95 text-emerald-400 shadow-[0_4px_22px_rgba(16,185,129,0.35)] backdrop-blur-md hover:border-emerald-400 hover:text-emerald-300 transition-all ring-2 ring-emerald-500/30"
+            title={language === 'kh' ? 'ចូលគណនី / Login' : 'Login'}
+          >
+            <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 group-hover:text-emerald-300" />
+            <span className="text-xs sm:text-[14px] font-khmer font-bold transition-colors whitespace-nowrap">
+              {language === 'kh' ? 'ចូលគណនី' : 'Login'}
+            </span>
+          </motion.button>
+        ) : null}
+
+        {/* Share Button - Only visible when logged in (Admin) */}
+        {isAdmin && (
+          <motion.button
+            id="share-btn"
+            onClick={() => {
+              handleSaveEvent(event, false);
+              setShowShareModal(true);
+            }}
+            onTap={() => {
+              handleSaveEvent(event, false);
+              setShowShareModal(true);
+            }}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.94 }}
+            className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-400/80 bg-gradient-to-br from-black/95 via-black/95 to-black/95 text-amber-300 shadow-[0_6px_25px_rgba(245,158,11,0.3)] backdrop-blur-md hover:border-amber-300 hover:text-amber-100 hover:shadow-[0_8px_30px_rgba(245,158,11,0.55)] transition-all ring-2 ring-amber-400/50 cursor-pointer select-none"
+            title={language === 'kh' ? 'ចែករំលែកលិខិតអញ្ជើញ / Share Invitation' : 'Share Invitation'}
+          >
+            <div className="p-1 rounded-full bg-amber-400/15 group-hover:bg-amber-400/30 transition-colors">
+              <Share2 className="w-3.5 h-3.5 text-amber-300 group-hover:text-amber-200 transition-colors" />
+            </div>
+            <span className="text-xs sm:text-[14px] font-khmer font-bold text-amber-200 group-hover:text-white transition-colors whitespace-nowrap">
+              {language === 'kh' ? 'ចែករំលែក' : 'Share'}
+            </span>
+          </motion.button>
+        )}
+
+        {/* Reload / Refresh Button */}
+        <motion.button
+          id="reload-refresh-btn"
+          onClick={() => {
+            window.location.reload();
+          }}
+          whileHover={{ scale: 1.05, y: -2 }}
+          whileTap={{ scale: 0.94 }}
+          className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-500/60 bg-gradient-to-br from-black/95 via-neutral-900 to-black text-amber-200 shadow-[0_4px_18px_rgba(0,0,0,0.5)] backdrop-blur-md hover:border-amber-400 hover:text-amber-100 hover:shadow-[0_4px_22px_rgba(245,158,11,0.4)] transition-all ring-1 ring-amber-500/30 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black cursor-pointer"
+          title={language === 'kh' ? 'ផ្ទុកឡើងវិញ / Reload' : 'Reload / Refresh'}
+        >
+          <div className="p-1 rounded-full bg-amber-500/20 group-hover:bg-amber-400/30 transition-colors">
+            <RotateCcw className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-[-45deg] group-hover:text-amber-200 transition-all duration-300" />
+          </div>
+          <span className="text-xs sm:text-[14px] font-khmer font-medium text-neutral-200 group-hover:text-amber-100 transition-colors whitespace-nowrap">
+            {language === 'kh' ? 'ផ្ទុកឡើងវិញ' : 'Reload'}
+          </span>
+        </motion.button>
+
+
+
+        {/* Manage Users Data Button for Admin (Yoeurn.seyha@diu.edu.kh) Only */}
+        {isAdmin && (authUser?.email?.toLowerCase() === 'yoeurn.seyha@diu.edu.kh' || localStorage.getItem('wedding_logged_in_identifier')?.toLowerCase() === 'yoeurn.seyha@diu.edu.kh') && (
+          <motion.button
+            id="manage-users-data-btn"
+            onClick={() => setShowAdminUsersModal(true)}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.94 }}
+            className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-500/60 bg-gradient-to-br from-black/95 via-neutral-900 to-black text-amber-200 shadow-[0_4px_18px_rgba(0,0,0,0.5)] backdrop-blur-md hover:border-amber-400 hover:text-amber-100 hover:shadow-[0_4px_22px_rgba(245,158,11,0.4)] transition-all ring-1 ring-amber-500/30 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            title={language === 'kh' ? 'ទិន្នន័យអ្នកប្រើប្រាស់' : 'Users Data'}
+          >
+            <div className="p-1 rounded-full bg-amber-500/20 group-hover:bg-amber-400/30 transition-colors">
+              <Users className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 group-hover:text-amber-200 transition-all duration-300" />
+            </div>
+            <span className="text-xs sm:text-[14px] font-khmer font-medium text-neutral-200 group-hover:text-amber-100 transition-colors whitespace-nowrap">
+              {language === 'kh' ? 'ទិន្នន័យអ្នកប្រើប្រាស់' : 'Users Data'}
+            </span>
+          </motion.button>
+        )}
+
+        {/* Authenticated Google User Badge - With Dedicated Database indicator */}
+        {authUser && (
+          <div
+            id="authenticated-user-badge"
+            className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-400/70 bg-gradient-to-r from-black/95 via-neutral-900/95 to-black/95 text-amber-200 text-xs shadow-[0_4px_22px_rgba(0,0,0,0.65)] backdrop-blur-md ring-1 ring-amber-400/40 hover:border-amber-300 transition-all duration-300 select-none"
+            title={`Signed in as ${authUser.email} | Personal Database: event_${authUser.uid.slice(0, 8)}...`}
+          >
+            <div className="relative shrink-0">
+              {authUser.photoURL ? (
+                <img
+                  src={authUser.photoURL}
+                  alt={authUser.displayName || 'User'}
+                  className="w-6 h-6 rounded-full object-cover border border-amber-400/80 shadow-xs"
+                />
+              ) : (
+                <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-[10.5px] border border-amber-400/70 shadow-xs">
+                  {(authUser.displayName || authUser.email || 'U')[0].toUpperCase()}
+                </span>
+              )}
+              {/* Online / Synced Database Live Indicator */}
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2" title="User Database Connected & Synced">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 ring-1 ring-black"></span>
+              </span>
+            </div>
+
+            <div className="flex flex-col text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="max-w-[110px] sm:max-w-[130px] truncate font-medium text-[11px] text-amber-100 font-khmer">
+                  {authUser.displayName || authUser.email?.split('@')[0]}
+                </span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/35 font-semibold uppercase tracking-wider">
+                  {authUser.email === 'yoeurn.seyha@diu.edu.kh' ? 'Admin' : 'User'}
+                </span>
+              </div>
+              <span className="text-[9.5px] font-khmer text-emerald-400/90 font-medium flex items-center gap-1 leading-tight">
+                <span className="inline-block w-1 h-1 rounded-full bg-emerald-400"></span>
+                ទិន្នន័យផ្ទាល់ខ្លួន (Personal DB)
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Validation Feedback Toast when Refresh Button is Clicked */}
+        <AnimatePresence>
+          {refreshValidationFeedback && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              className="fixed top-20 right-4 z-50 p-3 rounded-2xl border border-amber-400/80 bg-black/95 text-amber-200 shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-khmer"
+            >
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>{refreshValidationFeedback}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Admin Quick Return Toggle when testing shared link */}
+        {isAdmin && isFromShareLink && (
+          <motion.button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                const url = new URL(window.location.origin + window.location.pathname);
+                window.history.replaceState({}, '', url.toString());
+                setIsFromShareLink(false);
+              }
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-2 sm:px-3 sm:py-1.5 rounded-full border border-amber-400/40 bg-black/85 text-amber-300 text-xs font-khmer shadow-lg backdrop-blur-md flex items-center gap-1.5"
+            title={language === 'kh' ? 'ត្រឡប់ទៅផ្ទាំង Admin / Return to Admin Mode' : 'Return to Admin Mode'}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] sm:text-xs">{language === 'kh' ? 'ត្រឡប់ទៅ Admin' : 'Back to Admin'}</span>
+          </motion.button>
+        )}
+      </div>
+
+      {/* Floating Animations: Balloons & Gifts for Birthday, Rings & Sparkles & Confetti for Engagement, Butterflies for Wedding */}
+      {currentTemplateTypeInfo.type === 'birthday' ? (
+        <FloatingBalloonsAndGifts />
+      ) : currentTemplateTypeInfo.type === 'engagement' ? (
+        <FloatingEngagementRingsAndSparkles />
+      ) : (
+        <BeautifulButterflies />
+      )}
+
+      {/* Main Single Mobile-Optimized Invitation Card Container */}
+      <main
+        id="main-content-container"
+        style={{
+          backgroundImage: undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center top',
+          backgroundRepeat: 'no-repeat',
+        }}
+        className={`w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl ${mainCardBgClass} shadow-2xl relative border-x overflow-hidden pb-24 transition-colors duration-500 ease-in-out`}
+      >
+        {/* Full-height subtle darkening & texture overlay for crisp legibility */}
+        {!config.hide_main_background && (config.details_background || config.main_background) && (
+          <div className={`absolute inset-0 bg-gradient-to-b ${theme === 'light' ? 'from-white/70 via-white/50 to-white/70' : theme === 'gray' ? 'from-[#1b1e25]/60 via-[#1b1e25]/50 to-[#1b1e25]/70' : 'from-black/50 via-black/40 to-black/60'} pointer-events-none z-0 transition-all duration-500 ease-in-out`} />
+        )}
+
+        {/* HERO SECTION WITH AUTHENTIC PLANESSENTIAL BACKGROUND & GRADIENT MASK */}
+        <header className="relative w-full overflow-hidden text-center z-10">
+          {/* Royal Corner Kbach Ornaments on Hero Header */}
+          <div className="absolute top-2 left-2 z-20 pointer-events-none">
+            <KhmerCornerKbach position="top-left" className="w-12 h-12 sm:w-16 sm:h-16" />
+          </div>
+          <div className="absolute top-2 right-2 z-20 pointer-events-none">
+            <KhmerCornerKbach position="top-right" className="w-12 h-12 sm:w-16 sm:h-16" />
+          </div>
+
+          {/* Middle Card Header Background Wallpaper */}
+          {!config.hide_main_background && (
+            <div
+              className="absolute inset-0 bg-cover bg-top opacity-65"
+              style={{ backgroundImage: `url(${config.details_background || config.main_background || config.cover_background})` }}
+            />
+          )}
+
+          {/* Golden Pattern Overlay */}
+          <div className={`absolute inset-0 bg-gradient-to-b ${theme === 'light' ? 'from-white/20 via-transparent to-white/80' : theme === 'gray' ? 'from-[#1b1e25]/20 via-transparent to-[#1b1e25]/80' : 'from-black/10 via-transparent to-black/60'} transition-all duration-500 ease-in-out`} />
+
+          {/* Couple Main Pre-Wedding Photo with Artistic Frame & Shape */}
+          <div className="relative pt-6 pb-4 px-4 sm:px-8 flex flex-col items-center">
+            {(() => {
+              const portraitShape = config.portrait_shape || 'circle';
+              return (
+                <motion.div
+                  initial={{ scale: 0.65, opacity: 0, y: -30, rotate: -3 }}
+                  animate={{ scale: 1, opacity: 1, y: 0, rotate: 0 }}
+                  transition={{ type: 'spring', damping: 18, stiffness: 90, delay: 0.1 }}
+                  className={`relative mb-5 group portrait-hover-floating ${
+                    portraitShape === 'heart'
+                      ? 'w-[250px] sm:w-[310px] md:w-[360px] aspect-square filter drop-shadow-[0_12px_35px_rgba(245,158,11,0.45)]'
+                      : `overflow-hidden ${
+                          portraitShape === 'circle'
+                            ? 'w-[240px] h-[240px] sm:w-[300px] sm:h-[300px] md:w-[350px] md:h-[350px] aspect-square rounded-full border-[6px] border-amber-400 shadow-[0_14px_50px_rgba(245,158,11,0.4)]'
+                            : portraitShape === 'arch'
+                            ? 'w-[270px] sm:w-[330px] md:w-[380px] aspect-[3/4] rounded-t-full rounded-b-3xl border-[6px] border-amber-400 shadow-[0_14px_45px_rgba(245,158,11,0.35)]'
+                            : portraitShape === 'oval'
+                            ? 'w-[240px] sm:w-[300px] md:w-[350px] aspect-[3/4] rounded-[50%] border-[6px] border-amber-400 shadow-[0_14px_45px_rgba(245,158,11,0.4)]'
+                            : portraitShape === 'capsule'
+                            ? 'w-[230px] sm:w-[280px] md:w-[330px] aspect-[3/4] rounded-full border-[6px] border-amber-400 shadow-[0_14px_45px_rgba(245,158,11,0.4)]'
+                            : portraitShape === 'leaf'
+                            ? 'w-[260px] sm:w-[320px] md:w-[370px] aspect-[3/4] rounded-tl-[90px] rounded-br-[90px] rounded-tr-3xl rounded-bl-3xl sm:rounded-tl-[120px] sm:rounded-br-[120px] border-[6px] border-amber-400 shadow-[0_14px_45px_rgba(245,158,11,0.35)]'
+                            : portraitShape === 'square'
+                            ? 'w-[260px] sm:w-[320px] md:w-[370px] aspect-square rounded-3xl border-[6px] border-amber-400 shadow-[0_14px_50px_rgba(245,158,11,0.4)] ring-4 ring-amber-300/30'
+                            : 'w-[300px] sm:w-[360px] md:w-[420px] aspect-[4/3] rounded-3xl border-[6px] border-amber-400 shadow-[0_14px_45px_rgba(245,158,11,0.35)]'
+                        }`
+                  } ${!isViewer ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (!isViewer) handleOpenEditor();
+                  }}
+                  title={!isViewer ? "ចុចដើម្បីប្តូររូបថតគូស្នេហ៍ / Click to change photo" : undefined}
+                >
+                  {portraitShape === 'heart' ? (
+                    <div className="w-full h-full relative">
+                      <svg className="w-full h-full" viewBox="0 0 100 100">
+                        <defs>
+                          <clipPath id="wedding-heart-clip-direct">
+                            <path d="M 50,86 C 24,65 7,47 7,30 C 7,16 17,7 31,7 C 39,7 46,11 50,18 C 54,11 61,7 69,7 C 83,7 93,16 93,30 C 93,47 76,65 50,86 Z" />
+                          </clipPath>
+                        </defs>
+                        <image
+                          href={event.image || getCategoryCoverImage(event.eventType || event.id)}
+                          xlinkHref={event.image || getCategoryCoverImage(event.eventType || event.id)}
+                          width="100"
+                          height="100"
+                          preserveAspectRatio="xMidYMid slice"
+                          clipPath="url(#wedding-heart-clip-direct)"
+                        />
+                        <path
+                          d="M 50,86 C 24,65 7,47 7,30 C 7,16 17,7 31,7 C 39,7 46,11 50,18 C 54,11 61,7 69,7 C 83,7 93,16 93,30 C 93,47 76,65 50,86 Z"
+                          fill="none"
+                          stroke="#f59e0b"
+                          strokeWidth="5"
+                          strokeLinejoin="round"
+                          className="filter drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)]"
+                        />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="w-full h-full relative overflow-hidden rounded-[inherit] bg-neutral-900">
+                      <img
+                        src={event.image || getCategoryCoverImage(event.eventType || event.id)}
+                        alt={event.singlePerson ? event.groom : `${event.groom} & ${event.bride}`}
+                        referrerPolicy="no-referrer"
+                        loading="eager"
+                        onError={(e) => {
+                          const fallback = getCategoryCoverImage(event.eventType || event.id);
+                          if (e.currentTarget.src !== fallback) {
+                            e.currentTarget.src = fallback;
+                          }
+                        }}
+                        className={`w-full h-full object-cover object-center ${!isViewer ? 'group-hover:scale-105' : ''} transition-transform duration-500`}
+                      />
+                      {/* Soft bottom edge glow */}
+                      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
+                    </div>
+                  )}
+
+                  {/* Hover overlay hint */}
+                  {!isViewer && (
+                    <div className={`absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-30 ${portraitShape === 'heart' ? 'rounded-full' : 'rounded-[inherit]'}`}>
+                      <div className="px-3 py-1.5 rounded-full bg-amber-400 text-amber-950 font-khmer text-xs font-bold flex items-center gap-1.5 shadow-lg">
+                        <ImagePlus className="w-3.5 h-3.5" />
+                        <span>ប្តូររូបភាព</span>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })()}
+
+            {/* Traditional Ornamental Khmer Divider */}
+            <KhmerDividerKbach className="w-52 sm:w-64 h-5 my-2" color={config.primaryColor || '#f5b80f'} />
+
+            {/* Title: សិរីមង្គលអាពាហ៍ពិពាហ៍ */}
+            <motion.div
+              initial={{ opacity: 0, y: -35, scale: 0.85 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 0.25 }}
+              className="mt-2 mb-2"
+            >
+              <span className="text-xs sm:text-sm uppercase tracking-[0.3em] text-amber-300 font-semibold block mb-2">
+                {language === 'kh' ? badgeKh : badgeEn}
+              </span>
+              <h1
+                style={{ color: config.primaryColor || '#f5b80f' }}
+                className="text-2xl sm:text-3xl md:text-4xl font-moul py-1.5 leading-normal drop-shadow-[0_2px_6px_rgba(0,0,0,0.3)]"
+              >
+                {textContent.main_title}
+              </h1>
+            </motion.div>
+
+            {/* Couple Names */}
+            <motion.div
+              initial={{ opacity: 0, y: 35, scale: 0.88 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', damping: 16, stiffness: 95, delay: 0.38 }}
+              className="mt-4 mb-4 flex flex-col items-center cursor-pointer group px-2 text-center"
+              onClick={() => handleOpenEditor()}
+              title="ចុចដើម្បីកែឈ្មោះ / Click to edit names"
+            >
+              {language === 'en' ? (
+                <>
+                  <div
+                    style={{
+                      color: config.primaryColor || '#f5b80f',
+                      fontFamily: config.cover_en_font_family || undefined,
+                    }}
+                    className={`flex flex-wrap justify-center items-center gap-x-2 gap-y-1 sm:gap-4 text-3xl sm:text-4xl md:text-5xl lg:text-6xl ${!config.cover_en_font_family ? 'font-norican' : ''} group-hover:brightness-110 transition-all tracking-wide drop-shadow-[0_2px_8px_rgba(245,158,11,0.35)]`}
+                  >
+                    <span className="capitalize inline-block">
+                      {event.groomEn || 'Ro Malay'}
+                    </span>
+                    {!event.singlePerson && (
+                      <>
+                        <RingIcon className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 inline-block mx-1.5 shrink-0 drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)] animate-pulse" />
+                        <span className="capitalize inline-block">
+                          {event.brideEn || 'Uom Volak'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <p
+                    style={{ color: config.textColor || '#f5b80f' }}
+                    className="text-base sm:text-lg md:text-xl font-moul mt-2 tracking-wider flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 drop-shadow-sm"
+                  >
+                    <span>{event.groom}</span>
+                    {!event.singlePerson && (
+                      <>
+                        <span className="text-amber-400 font-serif italic text-base sm:text-lg">&</span>
+                        <span>{event.bride}</span>
+                      </>
+                    )}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      color: config.primaryColor || '#f5b80f',
+                      fontFamily: "'Noto Serif Khmer', serif",
+                    }}
+                    className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 sm:gap-4 text-2xl sm:text-3xl md:text-4xl lg:text-5xl group-hover:brightness-110 transition-all tracking-wide drop-shadow-[0_2px_8px_rgba(245,158,11,0.4)]"
+                  >
+                    <span
+                      style={{ fontSize: '38px', fontFamily: "'Noto Serif Khmer', serif" }}
+                      className="text-[38px] inline-block"
+                    >
+                      {event.groom}
+                    </span>
+                    {!event.singlePerson && (
+                      <>
+                        <RingIcon className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 inline-block mx-1.5 shrink-0 drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)] animate-pulse" />
+                        <span
+                          style={{ fontSize: '38px', fontFamily: "'Noto Serif Khmer', serif" }}
+                          className="text-[38px] inline-block"
+                        >
+                          {event.bride}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <p
+                    style={{
+                      color: config.textColor || '#f5b80f',
+                      fontFamily: config.cover_en_font_family || undefined,
+                    }}
+                    className={`text-2xl sm:text-3xl md:text-4xl ${!config.cover_en_font_family ? 'font-norican' : ''} mt-2 tracking-wider flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1`}
+                  >
+                    <span className="capitalize">{event.groomEn || 'Ro Malay'}</span>
+                    {!event.singlePerson && (
+                      <>
+                        <span className="text-amber-400 font-serif italic text-base sm:text-lg">&</span>
+                        <span className="capitalize">{event.brideEn || 'Uom Volak'}</span>
+                      </>
+                    )}
+                  </p>
+                </>
+              )}
+
+              {/* Bottom Traditional Khmer Floral Divider */}
+              <KhmerDividerKbach className="w-48 sm:w-64 h-5 mt-3" color={config.primaryColor || '#f5b80f'} />
+            </motion.div>
+
+            {/* Personalized Guest Badge / Royal Gold Ribbon Banner or Custom Envelope Frame */}
+            <motion.div
+              initial={{ opacity: 0, y: 45, scale: 0.75, rotateX: 20 }}
+              animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+              transition={{ type: 'spring', damping: 15, stiffness: 90, delay: 0.52 }}
+              className="relative my-8 sm:my-10 w-full max-w-md sm:max-w-lg md:max-w-xl cursor-pointer group px-2 flex justify-center"
+              onClick={() => {
+                handleSaveEvent(event, false);
+                setShowShareModal(true);
+              }}
+              title="ចុចដើម្បីប្តូរឈ្មោះភ្ញៀវ / Tap to personalize"
+            >
+              {config.envelope_frame ? (
+                <div className="relative w-full max-w-[320px] sm:max-w-[380px] h-[85px] sm:h-[100px] flex items-center justify-center select-none group-hover:scale-[1.02] transition-transform duration-300">
+                  <img
+                    src={config.envelope_frame}
+                    alt="Guest Plaque Frame"
+                    className="absolute inset-0 w-full h-full object-contain filter drop-shadow-lg pointer-events-none"
+                  />
+                  <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-[300px]">
+                    <span
+                      className="text-[11px] sm:text-xs font-semibold tracking-wider uppercase drop-shadow-xs"
+                      style={{ color: config.guestNameColor || '#854d0e' }}
+                    >
+                      {language === 'kh'
+                        ? 'សូមគោរពអញ្ជើញ'
+                        : (textContent.subtitle && textContent.subtitle.trim() ? textContent.subtitle : 'Cordially Invites')}
+                    </span>
+                    <span
+                      className="font-bold tracking-wide truncate max-w-[280px] mt-0.5 drop-shadow-md"
+                      style={{
+                        fontFamily: config.guest_name_font_family || "'Moul', serif",
+                        fontSize: config.guest_name_font_size ? `${config.guest_name_font_size}px` : '20px',
+                        lineHeight: '35px',
+                        color: config.guestNameColor || '#172554',
+                      }}
+                    >
+                      {guestName && guestName !== 'Your Name'
+                        ? guestName
+                        : language === 'kh'
+                          ? 'ភ្ញៀវកិត្តិយស'
+                          : 'Honored Guest'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <RoyalGoldRibbonBanner className="group-hover:scale-[1.02] transition-transform duration-300 w-full">
+                  <span className="block text-xs sm:text-sm font-khmer font-semibold text-[#78350f] mb-1.5 tracking-wide drop-shadow-sm">
+                    {language === 'kh'
+                      ? 'សូមគោរពអញ្ជើញ'
+                      : (textContent.subtitle && textContent.subtitle.trim() ? textContent.subtitle : 'Cordially Invites')}
+                  </span>
+                  <div
+                    className="text-xl sm:text-2xl font-moul tracking-wide text-[#582607] flex items-center justify-center gap-2 drop-shadow-sm"
+                    style={{
+                      fontFamily: config.guest_name_font_family || "'Moul', serif",
+                      color: config.guestNameColor || '#172554',
+                    }}
+                  >
+                    <span style={{ fontSize: config.guest_name_font_size ? `${config.guest_name_font_size}px` : undefined }}>
+                      {guestName && guestName !== 'Your Name'
+                        ? guestName
+                        : language === 'kh'
+                          ? 'ភ្ញៀវកិត្តិយស'
+                          : 'Honored Guest'}
+                    </span>
+                  </div>
+                </RoyalGoldRibbonBanner>
+              )}
+            </motion.div>
+
+            {/* Date & Location Summary Chips */}
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', damping: 16, stiffness: 100, delay: 0.68 }}
+              style={{ color: config.textColor || '#f5b80f' }}
+              className="space-y-3.5 text-xs sm:text-sm font-khmer my-4"
+            >
+              <div
+                id="header-date-chip"
+                className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full ${theme === 'light' ? 'bg-white/90 shadow-[0_6px_25px_rgba(0,0,0,0.1)]' : 'bg-gradient-to-r from-black/90 via-[#1c1608]/95 to-black/90 shadow-[0_6px_25px_rgba(245,184,15,0.3)]'} border border-amber-400/60 backdrop-blur-md transition-all duration-300 hover:scale-[1.02] hover:border-amber-300 ring-1 ring-amber-400/25 group`}
+              >
+                <div className={`p-1.5 rounded-full ${theme === 'light' ? 'bg-amber-100/50 text-amber-600 border-amber-300' : 'bg-amber-400/20 border-amber-400/40 text-amber-300'} border shadow-inner group-hover:scale-110 transition-transform`}>
+                  <Calendar className={`w-4 h-4 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <span className={`tracking-wide font-medium ${theme === 'light' ? 'text-amber-950' : 'text-amber-100'} drop-shadow-sm text-xs sm:text-sm`}>
+                    {(() => {
+                      const day2Shift = event.schedules?.[0]?.shifts?.[1];
+                      if (day2Shift?.date) {
+                        return language === 'kh'
+                          ? formatKhmerDate(day2Shift.date)
+                          : formatEnDate(day2Shift.date);
+                      }
+                      return textContent.date_time;
+                    })()}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                onClick={() => handleOpenEditor('design')}
+                style={{ color: config.textColor || '#f5b80f' }}
+                className="flex items-center justify-center gap-2 px-4 py-1.5 max-w-md mx-auto text-center opacity-90 hover:opacity-100 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer group leading-relaxed rounded-xl hover:bg-amber-400/10 border border-transparent hover:border-amber-400/30"
+                title={language === 'kh' ? 'ចុចដើម្បីកែប្រែព័ត៌មាន និងការរចនា / Click to edit in Design settings' : 'Click to edit in Design settings'}
+              >
+                <MapPin className="w-4 h-4 text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="group-hover:text-amber-200 transition-colors font-khmer">{language === 'kh' ? event.location : (event.locationEn || event.location)}</span>
+                <Edit3 className="w-3 h-3 text-amber-400/60 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+              </div>
+            </motion.div>
+
+            {/* Scroll Down Indicator */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.82 }}
+              className="mt-10 mb-2 flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity"
+            >
+              <span className="text-xs font-khmer text-amber-300 tracking-wider">
+                {language === 'kh' ? 'សូមអូសចុះក្រោម' : 'Scroll down'}
+              </span>
+              <ChevronDown className="w-4 h-4 text-amber-400 animate-bounce" />
+            </motion.div>
+          </div>
+        </header>
+
+        {/* SECTION: FORMAL INVITATION MESSAGE */}
+        <section id="invitation-text-section" className="relative z-10 py-12 px-6 sm:px-10 md:px-12 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className={`p-8 sm:p-12 rounded-3xl ${theme === 'light' ? 'bg-gradient-to-b from-white/95 via-amber-50/80 to-white/90 border-amber-300/80 shadow-[0_15px_40px_rgba(245,184,15,0.2)]' : 'bg-gradient-to-b from-black/80 via-amber-950/30 to-black/85 border-amber-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'} border-2 backdrop-blur-md relative overflow-hidden`}
+          >
+            {/* Khmer Royal Corner Ornaments on the Formal Letter */}
+            <div className="absolute top-2 left-2 pointer-events-none opacity-85">
+              <KhmerCornerKbach position="top-left" className="w-10 h-10 sm:w-12 sm:h-12" />
+            </div>
+            <div className="absolute top-2 right-2 pointer-events-none opacity-85">
+              <KhmerCornerKbach position="top-right" className="w-10 h-10 sm:w-12 sm:h-12" />
+            </div>
+            <div className="absolute bottom-2 left-2 pointer-events-none opacity-85">
+              <KhmerCornerKbach position="bottom-left" className="w-10 h-10 sm:w-12 sm:h-12" />
+            </div>
+            <div className="absolute bottom-2 right-2 pointer-events-none opacity-85">
+              <KhmerCornerKbach position="bottom-right" className="w-10 h-10 sm:w-12 sm:h-12" />
+            </div>
+
+            {/* Inner Gold Hairline Frame */}
+            <div className="absolute inset-2 sm:inset-3 rounded-2xl border border-amber-400/25 pointer-events-none" />
+
+            {/* Royal Gold Ring & Sparkle Crest */}
+            <div className="relative z-10 w-14 h-14 rounded-full bg-gradient-to-br from-[#fff3b0] via-[#f5b80f] to-[#b45309] flex items-center justify-center mx-auto mb-4 shadow-[0_6px_20px_rgba(245,184,15,0.4)] text-amber-950 border border-amber-200">
+              <RingIcon className="w-7 h-7 text-amber-950" />
+            </div>
+
+            <ShapedTitleText
+              text={textContent.invitation_title}
+              shape={config.title_text_shape}
+              color={config.primaryColor || '#f5b80f'}
+              fontFamily="'Khmer OS Bokor', 'Bokor', display"
+              className="relative z-10 mb-2"
+            />
+
+            <KhmerDividerKbach className="w-40 sm:w-52 h-4 my-2 opacity-90" color={config.primaryColor || '#f5b80f'} />
+
+            <p
+              style={{ color: config.textColor || '#f5b80f' }}
+              className="relative z-10 text-sm sm:text-base font-khmer leading-loose my-5 max-w-2xl mx-auto opacity-95"
+            >
+              {textContent.invitation_message}
+            </p>
+
+            <div className="relative z-10 flex items-center justify-center mt-2">
+              <img
+                src="https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/underline-kbach-2.png"
+                alt=""
+                className="w-44 opacity-80 filter drop-shadow-sm"
+              />
+            </div>
+          </motion.div>
+        </section>
+
+        {/* SECTION: LIVE COUNTDOWN TIMER & CALENDAR */}
+        <div className="relative z-10">
+          <CountdownSection
+            event={event}
+            language={language}
+            primaryColor={config.primaryColor || '#f5b80f'}
+            textColor={config.textColor || '#f5b80f'}
+            theme={theme}
+          />
+        </div>
+
+        {/* SECTION: WEDDING AGENDA / SCHEDULE */}
+        <div className="relative z-10">
+          <ScheduleSection
+            shifts={event.schedules?.[0]?.shifts || []}
+            language={language}
+            primaryColor={config.primaryColor || '#f5b80f'}
+            textColor={config.textColor || '#f5b80f'}
+            theme={theme}
+          />
+        </div>
+
+        {/* SECTION: VENUE LOCATION & GOOGLE MAPS */}
+        <div className="relative z-10">
+          <LocationSection
+            locationNameKh={event.location}
+            locationNameEn={event.locationEn || event.location}
+            mapImageUrl={config.event_location}
+            mapUrl={config.map_url}
+            language={language}
+            primaryColor={config.primaryColor || '#f5b80f'}
+            textColor={config.textColor || '#f5b80f'}
+            theme={theme}
+            onEditLocation={!isViewer ? () => handleOpenEditor('design') : undefined}
+          />
+        </div>
+
+        {/* SECTION: PHOTO GALLERY & LIGHTBOX */}
+        <div className="relative z-10">
+          <GallerySection
+            photos={photosList}
+            language={language}
+            primaryColor={config.primaryColor || '#f5b80f'}
+            textColor={config.textColor || '#f5b80f'}
+            theme={theme}
+            eventType={event.eventType}
+            defaultLayoutStyle={config.gallery_layout_style}
+            gallery_photo_captions={config.gallery_photo_captions}
+          />
+        </div>
+
+        {/* SECTION: GIFT VIA BAKONG / KHQR */}
+        <div className="relative z-10">
+          <GiftKHQRSection
+            qrCodeUrl={config.qr_code}
+            qrCodeRielUrl={config.qr_code_riel}
+            bankInfo={config.bankInfo}
+            groom={event.groom}
+            bride={event.bride}
+            singlePerson={event.singlePerson}
+            language={language}
+            primaryColor={config.primaryColor || '#f5b80f'}
+            textColor={config.textColor || '#f5b80f'}
+            theme={theme}
+          />
+        </div>
+
+        {/* SECTION: GRATITUDE & SINCERE APOLOGY */}
+        <section id="gratitude-section" className="relative z-10 py-8 px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className={`p-6 rounded-2xl ${theme === 'light' ? 'bg-amber-50/50 border-amber-200/50' : 'bg-amber-950/20 border-amber-500/20'} border shadow-lg relative`}
+          >
+            <h3
+              style={{ color: config.primaryColor || '#f5b80f' }}
+              className="text-base font-moul mb-2"
+            >
+              {textContent.gratitude_title || (language === 'kh' ? 'សូមអរគុណ និងសូមអភ័យទោស' : 'Gratitude & Sincere Apology')}
+            </h3>
+            <p
+              style={{ color: config.textColor || '#f5b80f' }}
+              className="text-xs sm:text-sm font-khmer leading-relaxed opacity-90"
+            >
+              {textContent.gratitude_message}
+            </p>
+          </motion.div>
+        </section>
+
+        {/* SECTION: DIGITAL GUESTBOOK / WISHES */}
+        <div className="relative z-10">
+          <WishesSection
+            defaultGuestName={guestName}
+            language={language}
+            primaryColor={config.primaryColor || '#f5b80f'}
+            textColor={config.textColor || '#f5b80f'}
+            theme={theme}
+            isAdmin={isAdmin}
+          />
+        </div>
+
+        {/* FOOTER: BRAND & REFERENCE */}
+        <footer className="relative z-10 pt-8 pb-16 px-6 text-center text-xs text-neutral-500 border-t border-amber-500/10">
+          <div className="flex items-center justify-center gap-1.5 mb-2">
+            <span
+              style={{ color: config.primaryColor || '#f5b80f' }}
+              className="font-moul text-xs"
+            >
+              {event.singlePerson ? event.groom : `${event.groom} & ${event.bride}`}
+            </span>
+          </div>
+          <div
+            style={{ color: config.textColor || '#f5b80f' }}
+            className="text-[11px] font-khmer opacity-90 flex items-center justify-center gap-1.5 flex-wrap"
+          >
+            <span>{language === 'kh' ? 'រៀបចំឡើងដោយក្តីស្រឡាញ់តាមរយៈ' : 'Crafted with love via'}</span>
+            <a
+              href="https://github.com/YeournSeyha"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-semibold hover:underline text-amber-500 hover:text-amber-400 transition-colors bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30"
+            >
+              <Github className="w-3.5 h-3.5" />
+              <span>ប្រុសស្អាត យឿន សីហា (@YeournSeyha)</span>
+              <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+            </a>
+          </div>
+        </footer>
+      </main>
+
+      {/* EVENT DASHBOARD / EDITOR MODAL (CAN ADD PICTURE & EDIT ALL INFORMATIONS) */}
+      <EventEditorModal
+        isOpen={showEditorModal}
+        onClose={() => setShowEditorModal(false)}
+        event={event}
+        onSave={handleSaveEvent}
+        onReset={handleResetEvent}
+        theme={theme}
+        initialTab={editorInitialTab}
+        language={language}
+        onToggleLanguage={toggleLanguage}
+        onChangeTheme={handleThemeChange}
+      />
+
+      {/* RSVP MODAL */}
+      <RSVPModal
+        isOpen={showRSVPModal}
+        onClose={() => setShowRSVPModal(false)}
+        defaultGuestName={guestName}
+        language={language}
+        theme={theme}
+      />
+
+      {/* SHARE / PERSONALIZE MODAL */}
+      <ShareInvitationModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        guestName={guestName}
+        isAdmin={isAdmin}
+        onUpdateGuestName={newName => setGuestName(newName)}
+        onSelectCategory={cat => {
+          const matchedPreset = EVENT_PRESETS.find(p => p.type === cat);
+          if (matchedPreset) {
+            handleSaveEvent(matchedPreset.sampleEvent);
+          }
+        }}
+        language={language}
+        eventId={event.id}
+        eventType={event.eventType}
+        eventName={event.name}
+        singlePerson={event.singlePerson}
+        groom={event.groom}
+        bride={event.bride}
+        weddingDate={event.date}
+        locationName={typeof event.location === 'string' ? event.location : (event as any).location?.name}
+        coverImage={event.cover_image || event.image || getCategoryCoverImage(event.eventType || event.id)}
+        theme={theme}
+      />
+
+      {/* ADD / PERSONALIZE GUEST MODAL */}
+      <AddGuestModal
+        isOpen={showAddGuestModal}
+        onClose={() => setShowAddGuestModal(false)}
+        currentGuestName={guestName}
+        onSaveGuestName={name => setGuestName(name)}
+        onOpenEnvelopeWithName={name => {
+          setGuestName(name);
+          setShowEnvelopeModal(true);
+        }}
+        language={language}
+        onToggleLanguage={toggleLanguage}
+        onChangeTheme={handleThemeChange}
+        eventId={event.id}
+        groom={event.groom}
+        bride={event.bride}
+        theme={theme}
+      />
+
+      {/* EVENT TYPE & TEMPLATE CREATOR / MANAGER MODAL */}
+      <EventTypeModal
+        isOpen={showEventTypeModal}
+        onClose={() => setShowEventTypeModal(false)}
+        language={language}
+        onToggleLanguage={toggleLanguage}
+        onChangeTheme={handleThemeChange}
+        currentEvent={event}
+        onApplyTemplate={handleSaveEvent}
+        onEditTemplate={eventData => {
+          handleSaveEvent(eventData);
+          setShowEventTypeModal(false);
+          setShowEditorModal(true);
+        }}
+        theme={theme}
+      />
+
+      {/* ADMIN LOGIN MODAL (NETLIFY / GOOGLE AUTH & PASSCODE) */}
+      <AnimatePresence>
+        {showAdminLoginModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onScroll={(e) => setModalScrollTop(e.currentTarget.scrollTop)}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto"
+          >
+            {/* Animated Background Glowing Orbs */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-amber-500/15 rounded-full blur-3xl animate-pulse" />
+              <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-yellow-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+            </div>
+
+            <motion.div
+              initial={{ scale: 0.85, y: 30, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.85, y: 30, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                backgroundAttachment: 'fixed',
+                backgroundPosition: 'center',
+                willChange: 'transform',
+              }}
+              className={`relative w-full max-w-md modal-hover-floating parallax-bg-container ${
+                theme === 'light'
+                  ? 'bg-[#e0e5ec] text-neutral-800 shadow-[9px_9px_16px_#a3b1c6,-9px_-9px_16px_#ffffff]'
+                  : 'bg-[#12161f] text-white shadow-[10px_10px_20px_#07090d,-10px_-10px_20px_#1d2331]'
+              } rounded-[2rem] p-8 text-left overflow-hidden border ${
+                theme === 'light' ? 'border-white/80' : 'border-white/5'
+              }`}
+            >
+              {/* Subtle Parallax Background Container */}
+              <div
+                className="absolute -inset-y-24 -inset-x-8 pointer-events-none -z-10 parallax-bg-layer"
+                style={{
+                  transform: `translate3d(0, ${Math.round((modalScrollTop || windowScrollY) * 0.3)}px, 0)`,
+                  willChange: 'transform',
+                  backgroundImage: theme === 'light'
+                    ? 'radial-gradient(ellipse at 50% 15%, rgba(245,158,11,0.18), transparent 70%), linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(224,229,236,0.85) 100%)'
+                    : 'radial-gradient(ellipse at 50% 15%, rgba(245,158,11,0.22), transparent 70%), linear-gradient(180deg, rgba(30,37,50,0.5) 0%, rgba(13,16,23,0.9) 100%)',
+                  backgroundAttachment: 'fixed',
+                  backgroundPosition: 'center',
+                }}
+              />
+              {/* Decorative Header Ribbon Glow */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 animate-gradient" />
+
+              <button
+                id="close-admin-login-btn"
+                type="button"
+                onClick={() => setShowAdminLoginModal(false)}
+                className={`absolute top-5 right-5 p-2 rounded-full ${
+                  theme === 'light'
+                    ? 'text-neutral-500 hover:text-neutral-900 bg-amber-100/60 hover:bg-amber-200'
+                    : 'text-neutral-400 hover:text-white bg-amber-500/10 hover:bg-amber-500/20'
+                } transition-all duration-300 transform hover:rotate-90`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className={`text-center pb-5 border-b ${theme === 'light' ? 'border-amber-500/30' : 'border-amber-500/20'} mb-6`}>
+                <motion.div
+                  initial={{ rotate: -15, scale: 0.8 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400/30 to-amber-600/30 border border-amber-400/60 text-amber-400 flex items-center justify-center mx-auto mb-3 shadow-[0_0_25px_rgba(245,158,11,0.3)]"
+                >
+                  <KeyRound className="w-7 h-7 animate-bounce" style={{ animationDuration: '3s' }} />
+                </motion.div>
+                <h3
+                  className={`text-xl font-moul ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'} tracking-wide`}
+                  style={{ fontFamily: "'Moul', serif" }}
+                >
+                  {language === 'kh' ? 'ចូលប្រព័ន្ធគ្រប់គ្រង' : 'Admin Portal'}
+                </h3>
+                <p className={`text-xs ${theme === 'light' ? 'text-amber-800' : 'text-amber-300/80'} font-khmer mt-1.5 leading-relaxed`}>
+                  {language === 'kh'
+                    ? 'សូមបញ្ចូលលេខសម្ងាត់ម្ចាស់កម្មវិធី ឬចូលតាមគណនី Google ដើម្បីគ្រប់គ្រងធៀបរបស់អ្នក។'
+                    : 'Enter your owner passcode or sign in with Google to manage your wedding invitation.'}
+                </p>
+              </div>
+
+              {/* Tab Switcher */}
+              <div className={`flex ${theme === 'light' ? 'bg-amber-50/60 border-amber-300' : 'bg-black/50 border-amber-500/20'} p-1 rounded-2xl border mb-5`}>
+                <button
+                  id="auth-tab-login-btn"
+                  type="button"
+                  onClick={() => setAuthTab('login')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all font-khmer flex items-center justify-center gap-1.5 ${
+                    authTab === 'login'
+                      ? 'bg-amber-500 text-neutral-950 shadow-md font-bold'
+                      : theme === 'light'
+                      ? 'text-neutral-600 hover:text-neutral-900'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>{language === 'kh' ? 'ចូលប្រព័ន្ធ (Login)' : 'Login'}</span>
+                </button>
+                <button
+                  id="auth-tab-signup-btn"
+                  type="button"
+                  onClick={() => setAuthTab('signup')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all font-khmer flex items-center justify-center gap-1.5 ${
+                    authTab === 'signup'
+                      ? 'bg-amber-500 text-neutral-950 shadow-md font-bold'
+                      : theme === 'light'
+                      ? 'text-neutral-600 hover:text-neutral-900'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>{language === 'kh' ? 'ចុះឈ្មោះថ្មី (Sign Up)' : 'Sign Up'}</span>
+                </button>
+              </div>
+
+              {authTab === 'signup' ? (
+                /* Sign Up Form for New User */
+                <form onSubmit={handleSignupSubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} font-khmer`}>
+                      {language === 'kh' ? 'ឈ្មោះពេញ (Full Name):' : 'Full Name:'}
+                    </label>
+                    <input
+                      type="text"
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      placeholder="បញ្ចូលឈ្មោះរបស់អ្នក"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-khmer focus:outline-none focus:ring-2 focus:ring-amber-400/20 ${
+                        theme === 'light'
+                          ? 'bg-amber-50/40 border-amber-300 text-neutral-900 placeholder:text-neutral-400 focus:border-amber-500'
+                          : 'bg-black/60 border-amber-500/40 text-amber-100 placeholder:text-neutral-600 focus:border-amber-400'
+                      }`}
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} font-khmer`}>
+                      {language === 'kh' ? 'អ៊ីមែល (Email):' : 'Email Address:'}
+                    </label>
+                    <input
+                      type="email"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      placeholder="example@gmail.com"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400/20 ${
+                        theme === 'light'
+                          ? 'bg-amber-50/40 border-amber-300 text-neutral-900 placeholder:text-neutral-400 focus:border-amber-500'
+                          : 'bg-black/60 border-amber-500/40 text-amber-100 placeholder:text-neutral-600 focus:border-amber-400'
+                      }`}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} font-khmer`}>
+                      {language === 'kh' ? 'បង្កើតលេខសម្ងាត់ថ្មី (Create Passcode):' : 'Create Passcode:'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showSignupPasscodeText ? 'text' : 'password'}
+                        value={signupPasscode}
+                        onChange={(e) => setSignupPasscode(e.target.value)}
+                        placeholder="បញ្ចូលលេខសម្ងាត់ (ឧ. love2222)"
+                        className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400/20 ${
+                          theme === 'light'
+                            ? 'bg-amber-50/40 border-amber-300 text-neutral-900 placeholder:text-neutral-400 focus:border-amber-500'
+                            : 'bg-black/60 border-amber-500/40 text-amber-100 placeholder:text-neutral-600 focus:border-amber-400'
+                        }`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPasscodeText(!showSignupPasscodeText)}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors ${
+                          theme === 'light'
+                            ? 'text-neutral-500 hover:text-neutral-800'
+                            : 'text-neutral-400 hover:text-white'
+                        }`}
+                        title={showSignupPasscodeText ? 'Hide passcode' : 'Show passcode'}
+                      >
+                        {showSignupPasscodeText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {signupMessage && (
+                      <p className="text-[11px] text-rose-500 font-khmer">{signupMessage}</p>
+                    )}
+                    <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} font-khmer`}>
+                      {language === 'kh' ? '💡 ចុះឈ្មោះគណនីថ្មីដើម្បីចូលប្រើប្រាស់ និងគ្រប់គ្រងកម្មវិធីនេះ' : '💡 Sign up to create a new user profile and manage this app.'}
+                    </p>
+                  </div>
+
+                  <button
+                    id="submit-signup-btn"
+                    type="submit"
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-khmer font-bold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>{language === 'kh' ? 'ចុះឈ្មោះគណនីថ្មី (Register New User)' : 'Register New User'}</span>
+                  </button>
+                </form>
+              ) : (
+                <>
+                  {/* Passcode Login Form */}
+                  <form onSubmit={handlePasscodeSubmit} className="space-y-4">
+                    {/* Email or Username input */}
+                    <div className="space-y-1.5">
+                      <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} font-khmer`}>
+                        {language === 'kh' ? 'អ៊ីមែល ឬ ឈ្មោះអ្នកប្រើប្រាស់ (Email or Username):' : 'Email or Username:'}
+                      </label>
+                      <input
+                        id="login-email-or-username"
+                        type="text"
+                        value={loginEmailOrUsername}
+                        onChange={(e) => setLoginEmailOrUsername(e.target.value)}
+                        placeholder={language === 'kh' ? 'បញ្ចូលអ៊ីមែល ឬ ឈ្មោះអ្នកប្រើ (ស្រេចចិត្ត)' : 'Enter email or username (optional)'}
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-khmer focus:outline-none focus:ring-2 focus:ring-amber-400/20 ${
+                          theme === 'light'
+                            ? 'bg-amber-50/40 border-amber-300 text-neutral-900 placeholder:text-neutral-400 focus:border-amber-500'
+                            : 'bg-black/60 border-amber-500/40 text-amber-100 placeholder:text-neutral-600 focus:border-amber-400'
+                        }`}
+                        autoFocus
+                      />
+                      {loginEmailOrUsername.trim() && (
+                        <p className={`text-[11px] font-khmer mt-1 ${
+                          JSON.parse(localStorage.getItem('wedding_registered_users') || '[]').some(
+                            (u: any) => u.email?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase() || u.name?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase()
+                          )
+                            ? 'text-emerald-500'
+                            : 'text-amber-500'
+                        }`}>
+                          {JSON.parse(localStorage.getItem('wedding_registered_users') || '[]').some(
+                            (u: any) => u.email?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase() || u.name?.toLowerCase() === loginEmailOrUsername.trim().toLowerCase()
+                          )
+                            ? (language === 'kh' ? '✓ រកឃើញគណនីបានចុះឈ្មោះ (Account registered)' : '✓ Registered account found')
+                            : (language === 'kh' ? 'ℹ️ មិនទាន់មានគណនីនេះទេ។ សូមចុះឈ្មោះជាមុនសិន ឬប្រើ Master Passcode' : 'ℹ️ Account not registered yet. Please sign up or use master passcode.')}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} font-khmer`}>
+                          {language === 'kh' ? 'លេខសម្ងាត់ម្ចាស់កម្មវិធី (Owner Passcode):' : 'Owner Passcode:'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowForgotPasswordModal(true);
+                            setForgotStep('enter_email');
+                            setForgotEmail(loginEmailOrUsername.trim());
+                            setForgotMessage('');
+                          }}
+                          className={`text-[11px] font-khmer underline hover:opacity-80 transition-opacity ${theme === 'light' ? 'text-amber-700' : 'text-amber-400'}`}
+                        >
+                          {language === 'kh' ? 'ភ្លេចលេខសម្ងាត់?' : 'Forgot Password?'}
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          id="login-password-input"
+                          type={showPasscodeText ? 'text' : 'password'}
+                          value={adminPasscode}
+                          onChange={(e) => setAdminPasscode(e.target.value)}
+                          placeholder="បញ្ចូលលេខសម្ងាត់ (ឧ. love2222)"
+                          className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400/20 ${
+                            theme === 'light'
+                              ? 'bg-amber-50/40 border-amber-300 text-neutral-900 placeholder:text-neutral-400 focus:border-amber-500'
+                              : 'bg-black/60 border-amber-500/40 text-amber-100 placeholder:text-neutral-600 focus:border-amber-400'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasscodeText(!showPasscodeText)}
+                          className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors ${
+                            theme === 'light'
+                              ? 'text-neutral-500 hover:text-neutral-800'
+                              : 'text-neutral-400 hover:text-white'
+                          }`}
+                          title={showPasscodeText ? 'Hide passcode' : 'Show passcode'}
+                        >
+                          {showPasscodeText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {passcodeError && (
+                        <p className="text-[11px] text-rose-500 font-khmer">{passcodeError}</p>
+                      )}
+                      <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} font-khmer`}>
+                        {language === 'kh' ? '💡 លេខសម្ងាត់លំនាំដើម៖ love2222' : '💡 Default passcode: love2222'}
+                      </p>
+                    </div>
+
+                    <button
+                      id="submit-login-btn"
+                      type="submit"
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-khmer font-bold text-sm shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      <span>{language === 'kh' ? 'បញ្ជូល' : 'Enter'}</span>
+                    </button>
+                  </form>
+
+                  <div className="relative my-5 flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center"><div className={`w-full border-t ${theme === 'light' ? 'border-neutral-200' : 'border-white/10'}`} /></div>
+                    <span className={`relative px-3 ${theme === 'light' ? 'bg-white text-neutral-500' : 'bg-black text-neutral-400'} text-[11px] font-khmer`}>
+                      {language === 'kh' ? 'ឬ ចូលតាម Google' : 'OR Google Sign-In'}
+                    </span>
+                  </div>
+
+                  {/* Google Sign In Option */}
+                  <button
+                    id="google-login-btn"
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={isGoogleLoading}
+                    className={`w-full py-3 px-4 rounded-xl font-khmer font-semibold text-xs transition-all duration-300 flex items-center justify-center gap-3 border shadow-sm ${
+                      theme === 'light'
+                        ? 'bg-white hover:bg-neutral-50 text-neutral-800 border-neutral-300 hover:border-amber-400/80 shadow-neutral-200/50'
+                        : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-100 border-neutral-700 hover:border-amber-500/60 shadow-black/40'
+                    } disabled:opacity-80 disabled:cursor-not-allowed ${
+                      isGoogleLoading
+                        ? 'ring-2 ring-amber-400/60 shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-pulse'
+                        : 'hover:shadow-md active:scale-[0.98] hover:text-amber-600 dark:hover:text-amber-400'
+                    }`}
+                  >
+                    {isGoogleLoading ? (
+                      <span className="relative flex items-center justify-center w-4 h-4 flex-shrink-0">
+                        <span className="absolute inline-block w-4 h-4 border-2 border-amber-500/25 rounded-full" />
+                        <span className="absolute inline-block w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      </span>
+                    ) : (
+                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                    )}
+                    <span>
+                      {isGoogleLoading
+                        ? language === 'kh' ? 'កំពុងភ្ជាប់ Google...' : 'Connecting to Google...'
+                        : language === 'kh' ? 'ចូលជាមួយ Google (Sign in with Google)' : 'Sign in with Google'}
+                    </span>
+                  </button>
+
+                  {googleAuthError && (
+                    <p className="text-[11px] text-rose-500 font-khmer text-center mt-2 leading-relaxed">
+                      {googleAuthError}
+                    </p>
+                  )}
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Subtle Auto-Scroll 1.5x Indicator */}
+      {hasOpenedEnvelope && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="fixed bottom-5 right-5 z-40"
+        >
+          <motion.button
+            onClick={toggleManualAutoScroll}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`px-3.5 py-2 rounded-full border shadow-lg backdrop-blur-md flex items-center gap-2 text-xs font-khmer transition-all cursor-pointer select-none ${
+              isAutoScrolling
+                ? 'bg-amber-400 text-amber-950 font-bold border-amber-300 shadow-amber-500/25 ring-2 ring-amber-400/40'
+                : 'bg-black/80 text-amber-300 border-amber-500/40 hover:bg-black/95 hover:text-white'
+            }`}
+            title={
+              isAutoScrolling
+                ? language === 'kh'
+                  ? 'កំពុងរំកិលស្វ័យប្រវត្ត (1.5x) - ចុចដើម្បីផ្អាក'
+                  : 'Auto-Scrolling (1.5x) - Tap to pause'
+                : language === 'kh'
+                ? 'ចុចដើម្បីរំកិលស្វ័យប្រវត្តិ (1.5x)'
+                : 'Tap to Auto-Scroll (1.5x)'
+            }
+          >
+            {isAutoScrolling ? (
+              <>
+                <Pause className="w-3.5 h-3.5 text-amber-950 fill-amber-950" />
+                <span>{language === 'kh' ? 'រំកិលស្វ័យប្រវត្ត 1.5x' : 'Auto Scroll 1.5x'}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-950 animate-ping" />
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                <span>{language === 'kh' ? 'រំកិល 1.5x' : 'Scroll 1.5x'}</span>
+              </>
+            )}
+          </motion.button>
+        </motion.div>
+      )}
+
+      {/* Admin Users Data & Management Modal */}
+      <AnimatePresence>
+        {showAdminUsersModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setShowAdminUsersModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.92, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className={`relative w-full max-w-2xl ${
+                theme === 'light'
+                  ? 'bg-white text-neutral-900 border-neutral-300'
+                  : 'bg-black/95 text-white border-amber-500/40'
+              } border rounded-2xl p-6 shadow-2xl backdrop-blur-2xl max-h-[85vh] overflow-y-auto`}
+            >
+              <button
+                onClick={() => setShowAdminUsersModal(false)}
+                className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${
+                  theme === 'light' ? 'text-neutral-500 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200' : 'text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className={`pb-3 border-b ${theme === 'light' ? 'border-neutral-200' : 'border-amber-500/30'} mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+                <div className="flex items-center gap-2.5">
+                  <Users className={`w-6 h-6 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className={`text-lg font-moul ${theme === 'light' ? 'text-amber-700' : 'text-amber-200'}`}>
+                        {language === 'kh' ? 'ទិន្នន័យអ្នកប្រើប្រាស់ទាំងអស់' : 'All Registered Users'}
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                        {dbUsersList.length} {language === 'kh' ? 'គណនី' : 'Accounts'}
+                      </span>
+                    </div>
+                    <p className={`text-xs ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} font-khmer mt-0.5`}>
+                      {language === 'kh' ? 'គ្រប់គ្រង មើល និងកែប្រែគណនីអ្នកប្រើប្រាស់ និង Admin ទាំងអស់ក្នុងប្រព័ន្ធ' : 'Manage, View & Edit All User Accounts and Passcodes'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live Search Input Filter */}
+                <div className="w-full sm:w-64">
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder={language === 'kh' ? '🔍 ស្វែងរកឈ្មោះ ឬ អ៊ីមែល...' : '🔍 Search name or email...'}
+                    className={`w-full px-3.5 py-1.5 rounded-xl text-xs border ${
+                      theme === 'light'
+                        ? 'bg-neutral-100 border-neutral-300 text-neutral-900 focus:border-amber-500'
+                        : 'bg-black/70 border-amber-500/40 text-amber-200 placeholder-neutral-500 focus:border-amber-400'
+                    } outline-none transition-all`}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {(() => {
+                  const filteredList = dbUsersList.filter((u: any) => {
+                    if (!userSearchQuery.trim()) return true;
+                    const q = userSearchQuery.toLowerCase().trim();
+                    const name = (u.name || '').toLowerCase();
+                    const email = (u.email || '').toLowerCase();
+                    const role = isTargetUserAdmin(u) ? 'admin' : 'user';
+                    return name.includes(q) || email.includes(q) || role.includes(q);
+                  });
+
+                  if (filteredList.length === 0) {
+                    return (
+                      <p className={`text-sm ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} text-center py-6 font-khmer`}>
+                        {language === 'kh' ? 'រកមិនឃើញទិន្នន័យអ្នកប្រើប្រាស់ដែលត្រូវគ្នានឹងការស្វែងរកទេ។' : 'No user accounts match your search filter.'}
+                      </p>
+                    );
+                  }
+
+                  return filteredList.map((user: any, idx: number) => (
+                    <div key={idx} className={`p-4 rounded-xl border ${theme === 'light' ? 'border-neutral-200 bg-neutral-50' : 'border-amber-500/20 bg-neutral-900/80'} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-bold text-sm ${theme === 'light' ? 'text-neutral-900' : 'text-amber-300'} font-khmer`}>{user.name || 'User'}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            isTargetUserAdmin(user)
+                              ? (theme === 'light' ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-amber-400/25 text-amber-300 border-amber-400/40')
+                              : (theme === 'light' ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-blue-400/20 text-blue-300 border-blue-400/30')
+                          } border`}>
+                            {isTargetUserAdmin(user) ? 'Admin' : 'User'}
+                          </span>
+                        </div>
+                        <p className={`text-xs ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-300'}`}>📧 <span className={theme === 'light' ? 'text-neutral-900 font-medium' : 'text-amber-200'}>{user.email}</span></p>
+                        <p className={`text-xs ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} flex items-center gap-1.5`}>
+                          <span>🔑 Passcode:</span>
+                          <span className={`${theme === 'light' ? 'text-amber-700' : 'text-amber-400'} font-mono font-medium tracking-wider select-all`}>
+                            {revealedPasscodeIndex === idx ? (user.passcode || '**************') : '**************'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setRevealedPasscodeIndex(revealedPasscodeIndex === idx ? null : idx)}
+                            className="p-1 rounded text-neutral-400 hover:text-amber-400 transition-colors cursor-pointer inline-flex items-center"
+                            title={revealedPasscodeIndex === idx ? (language === 'kh' ? 'លាក់លេខសម្ងាត់' : 'Hide Passcode') : (language === 'kh' ? 'បង្ហាញលេខសម្ងាត់' : 'Show Passcode')}
+                          >
+                            {revealedPasscodeIndex === idx ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </p>
+                      </div>
+
+                      {editingUserIndex === idx ? (
+                        <div className="flex flex-col gap-2 w-full sm:w-auto">
+                          <input
+                            type="text"
+                            value={editNameVal}
+                            onChange={e => setEditNameVal(e.target.value)}
+                            placeholder="New Name"
+                            className={`px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-white'} text-xs`}
+                          />
+                          <input
+                            type="email"
+                            value={editEmailVal}
+                            onChange={e => setEditEmailVal(e.target.value)}
+                            placeholder="New Email"
+                            className={`px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-white'} text-xs`}
+                          />
+                          <input
+                            type="text"
+                            value={editPassVal}
+                            onChange={e => setEditPassVal(e.target.value)}
+                            placeholder="New Password/Passcode"
+                            className={`px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-white'} text-xs`}
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleSaveUserEdit(idx)}
+                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingUserIndex(null)}
+                              className="px-3 py-1 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-white text-xs"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 self-start sm:self-center">
+                          <button
+                            onClick={() => {
+                              setEditingUserIndex(idx);
+                              setEditNameVal(user.name || '');
+                              setEditEmailVal(user.email || '');
+                              setEditPassVal(user.passcode || '');
+                            }}
+                            className={`px-3 py-1.5 rounded-lg border ${theme === 'light' ? 'border-amber-500/50 bg-amber-50 text-amber-800 hover:bg-amber-100' : 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300'} text-xs font-khmer transition-colors flex items-center gap-1 cursor-pointer`}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>{language === 'kh' ? 'កែប្រែ' : 'Edit'}</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteUser(user, idx)}
+                            title={
+                              !checkIsCurrentActorAdmin() && isTargetUserAdmin(user)
+                                ? (language === 'kh' ? 'អ្នកប្រើប្រាស់ទូទៅមិនអាចលុបគណនី Admin បានទេ' : 'General users cannot delete an admin user')
+                                : (language === 'kh' ? 'លុបអ្នកប្រើប្រាស់' : 'Delete user')
+                            }
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-khmer transition-all flex items-center gap-1 cursor-pointer ${
+                              !checkIsCurrentActorAdmin() && isTargetUserAdmin(user)
+                                ? 'opacity-40 cursor-not-allowed border-neutral-600/40 bg-neutral-800/40 text-neutral-400 hover:opacity-50'
+                                : theme === 'light'
+                                ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95'
+                                : 'border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-95'
+                            }`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>{language === 'kh' ? 'លុប' : 'Delete'}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ));
+                })()}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Forgot Password Modal */}
+      <AnimatePresence>
+        {showForgotPasswordModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setShowForgotPasswordModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.92, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className={`relative w-full max-w-md ${theme === 'light' ? 'bg-white text-neutral-900 border-neutral-300' : 'bg-black/95 text-white border-amber-500/40'} border rounded-2xl p-6 shadow-2xl backdrop-blur-2xl`}
+            >
+              <button
+                onClick={() => setShowForgotPasswordModal(false)}
+                className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${theme === 'light' ? 'text-neutral-500 hover:text-neutral-900 bg-neutral-100' : 'text-neutral-400 hover:text-white bg-white/5'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-2.5 pb-3 border-b border-amber-500/30 mb-5">
+                <KeyRound className="w-6 h-6 text-amber-400" />
+                <div>
+                  <h3 className="text-lg font-moul text-amber-300">
+                    {language === 'kh' ? 'ភ្លេចលេខសម្ងាត់ (Forgot Password)' : 'Forgot Password'}
+                  </h3>
+                  <p className={`text-xs ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'} font-khmer`}>
+                    {language === 'kh' ? 'ផ្ទៀងផ្ទាត់អ៊ីមែលដើម្បីកំណត់លេខសម្ងាត់ថ្មី' : 'Verify email to reset your passcode'}
+                  </p>
+                </div>
+              </div>
+
+              {forgotStep === 'enter_email' && (
+                <form onSubmit={handleSendResetCode} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold font-khmer">
+                      {language === 'kh' ? 'បញ្ចូលអ៊ីមែលរបស់អ្នក (Enter Email):' : 'Enter Your Email:'}
+                    </label>
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={e => setForgotEmail(e.target.value)}
+                      placeholder="e.g. yoeurn.seyha@diu.edu.kh"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-white'}`}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  {forgotMessage && (
+                    <p className="text-xs text-amber-500 font-khmer leading-relaxed">{forgotMessage}</p>
+                  )}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPasswordModal(false)}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-xl border text-xs font-khmer transition-colors whitespace-nowrap ${
+                        theme === 'light'
+                          ? 'border-neutral-300 bg-neutral-100 hover:bg-neutral-200 text-neutral-800'
+                          : 'border-amber-500/40 bg-white/5 hover:bg-white/10 text-amber-200'
+                      }`}
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>{language === 'kh' ? 'ត្រឡប់ក្រោយ' : 'Go Back'}</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-neutral-950 font-khmer font-bold text-xs shadow-lg shadow-amber-500/20"
+                    >
+                      {language === 'kh' ? 'ផ្ញើលេខកូដផ្ទៀងផ្ទាត់ 4 ខ្ទង់ (Send Code)' : 'Send 4-Digit Code'}
+                    </button>
+                  </div>
+
+                  <div className="relative my-3.5 flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className={`w-full border-t ${theme === 'light' ? 'border-neutral-200' : 'border-white/10'}`} />
+                    </div>
+                    <span className={`relative px-2.5 ${theme === 'light' ? 'bg-white text-neutral-500' : 'bg-black text-neutral-400'} text-[11px] font-khmer`}>
+                      {language === 'kh' ? 'ឬ ចូលតាម Google OAuth' : 'OR Google OAuth Sign-In'}
+                    </span>
+                  </div>
+
+                  {/* Google OAuth Quick Sign-In */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleGoogleLogin();
+                      setShowForgotPasswordModal(false);
+                    }}
+                    disabled={isGoogleLoading}
+                    className={`w-full py-2.5 px-4 rounded-xl font-khmer font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2.5 border shadow-sm ${
+                      theme === 'light'
+                        ? 'bg-neutral-50 hover:bg-neutral-100 text-neutral-800 border-neutral-300 hover:border-neutral-400'
+                        : 'bg-white/10 hover:bg-white/15 text-white border-white/15 hover:border-amber-400/40'
+                    }`}
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>{language === 'kh' ? 'ចូលតាម Google OAuth (Google Sign-In)' : 'Sign In with Google OAuth'}</span>
+                  </button>
+                </form>
+              )}
+
+              {forgotStep === 'enter_code' && (
+                <form onSubmit={handleVerifyResetCode} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold font-khmer">
+                      {language === 'kh' ? 'បញ្ចូលលេខកូដផ្ទៀងផ្ទាត់ 4 ខ្ទង់ (4-Digit Code):' : 'Enter 4-Digit Verification Code:'}
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={enteredCode}
+                      onChange={e => setEnteredCode(e.target.value)}
+                      placeholder="e.g. 4829"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-center text-lg tracking-widest font-mono ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-amber-300'}`}
+                      required
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="text-center pt-1">
+                    {resetTimer > 0 ? (
+                      <p className={`text-xs font-mono font-medium ${theme === 'light' ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-amber-400 bg-amber-500/10 border-amber-500/30'} border py-1.5 px-3 rounded-lg inline-block font-khmer`}>
+                        {language === 'kh'
+                          ? `⏱️ រង់ចាំ (Waiting): ${resetTimer} វិនាទី`
+                          : `⏱️ Waiting time: ${resetTimer}s`}
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const code = Math.floor(1000 + Math.random() * 9000).toString();
+                          setGeneratedCode(code);
+                          setResetTimer(60);
+                          try {
+                            await fetch('/api/send-reset-code', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ email: forgotEmail.trim().toLowerCase(), code, sender: 'Yoeurn.seyha@diu.edu.kh' }),
+                            });
+                          } catch (err) {
+                            console.warn('Error resending code:', err);
+                          }
+                          setForgotMessage(
+                            language === 'kh'
+                              ? `លេខកូដផ្ទៀងផ្ទាត់ថ្មីត្រូវផ្ញើចេញពី Yoeurn.seyha@diu.edu.kh៖ ${code}`
+                              : `New 4-digit code sent from Yoeurn.seyha@diu.edu.kh: ${code}`
+                          );
+                        }}
+                        className="px-4 py-2 rounded-xl border border-amber-500/50 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-khmer transition-all shadow-md flex items-center justify-center gap-1.5 mx-auto"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>{language === 'kh' ? 'ទទួលបានលេខកូដថ្មី (Get New Code)' : 'Get New Code'}</span>
+                      </button>
+                    )}
+                  </div>
+                  {forgotMessage && (
+                    <p className="text-xs text-amber-400 font-khmer leading-relaxed bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/30">{forgotMessage}</p>
+                  )}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep('enter_email')}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-xl border text-xs font-khmer transition-colors whitespace-nowrap ${
+                        theme === 'light'
+                          ? 'border-neutral-300 bg-neutral-100 hover:bg-neutral-200 text-neutral-800'
+                          : 'border-amber-500/40 bg-white/5 hover:bg-white/10 text-amber-200'
+                      }`}
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>{language === 'kh' ? 'ត្រឡប់ក្រោយ' : 'Go Back'}</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-neutral-950 font-khmer font-bold text-xs shadow-lg shadow-amber-500/20"
+                    >
+                      {language === 'kh' ? 'ផ្ទៀងផ្ទាត់លេខកូដ (Verify Code)' : 'Verify Code'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {forgotStep === 'new_password' && (
+                <form onSubmit={handleSaveNewPassword} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold font-khmer">
+                      {language === 'kh' ? 'លេខសម្ងាត់ថ្មី (New Passcode):' : 'New Passcode:'}
+                    </label>
+                    <input
+                      type="text"
+                      value={newPasscodeVal}
+                      onChange={e => setNewPasscodeVal(e.target.value)}
+                      placeholder="e.g. love2222"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono ${theme === 'light' ? 'bg-white border-neutral-300 text-neutral-900' : 'bg-black border-amber-500/40 text-amber-100'}`}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep('enter_code')}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-xl border text-xs font-khmer transition-colors whitespace-nowrap ${
+                        theme === 'light'
+                          ? 'border-neutral-300 bg-neutral-100 hover:bg-neutral-200 text-neutral-800'
+                          : 'border-amber-500/40 bg-white/5 hover:bg-white/10 text-amber-200'
+                      }`}
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>{language === 'kh' ? 'ត្រឡប់ក្រោយ' : 'Go Back'}</span>
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-khmer font-bold text-xs shadow-lg shadow-emerald-500/20"
+                    >
+                      {language === 'kh' ? 'រក្សាទុកលេខសម្ងាត់ថ្មី (Save New Passcode)' : 'Save New Passcode'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Authentication & Cloud Services Architecture */}
+              <div className={`mt-5 pt-3.5 border-t ${theme === 'light' ? 'border-neutral-200' : 'border-white/10'} space-y-2`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[10px] font-semibold tracking-wider uppercase font-mono ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                    Authentication & Cloud Stack
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live & Verified
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  {/* 1. Vercel Domain */}
+                  <div className={`p-2.5 rounded-xl border ${theme === 'light' ? 'bg-neutral-50/80 border-neutral-200' : 'bg-white/[0.03] border-white/10'} flex items-start gap-2 transition-colors hover:border-amber-400/40 col-span-2`}>
+                    <div className="p-1 rounded-md bg-black text-white mt-0.5 flex-shrink-0 shadow-2xs">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 1L24 22H0L12 1Z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="text-[11px] font-bold font-mono text-amber-400 truncate">wellcom-one.vercel.app</div>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono">
+                          Firebase Authorized
+                        </span>
+                      </div>
+                      <p className={`text-[9.5px] leading-tight mt-0.5 ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'}`}>
+                        {language === 'kh'
+                          ? 'ដូម៉ែន Vercel បានភ្ជាប់ និងបន្ថែមទៅក្នុង Firebase Console (Authentication > Settings > Authorized Domains)'
+                          : 'Vercel domain configured & added to Firebase Console Authorized Domains'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 2. Google OAuth */}
+                  <div className={`p-2.5 rounded-xl border ${theme === 'light' ? 'bg-neutral-50/80 border-neutral-200' : 'bg-white/[0.03] border-white/10'} flex items-start gap-2 transition-colors hover:border-amber-400/40`}>
+                    <div className="p-1 rounded-md bg-white border border-neutral-200 mt-0.5 flex-shrink-0 shadow-2xs">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold font-mono truncate">Google OAuth</div>
+                      <p className={`text-[9.5px] leading-tight ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'}`}>
+                        Google sign-in & identity
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 3. Firebase / Supabase / Auth.js */}
+                  <div className={`p-2.5 rounded-xl border ${theme === 'light' ? 'bg-neutral-50/80 border-neutral-200' : 'bg-white/[0.03] border-white/10'} flex items-start gap-2 transition-colors hover:border-amber-400/40`}>
+                    <div className="p-1 rounded-md bg-amber-500/10 text-amber-500 mt-0.5 border border-amber-500/20 flex-shrink-0">
+                      <KeyRound className="w-3 h-3" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold font-mono truncate">Firebase / Auth</div>
+                      <p className={`text-[9.5px] leading-tight ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'}`}>
+                        Authentication & password reset
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 4. TikTok Video Guide */}
+                  <a
+                    href="https://www.tiktok.com/@etheap/video/7607024917611121941?is_from_webapp=1&sender_device=pc"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`p-2.5 rounded-xl border ${theme === 'light' ? 'bg-neutral-50/80 border-neutral-200 hover:bg-neutral-100/90' : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'} flex items-start gap-2 transition-all hover:border-pink-500/50 hover:shadow-[0_0_15px_rgba(236,72,153,0.15)] group cursor-pointer block`}
+                  >
+                    <div className="p-1 rounded-md bg-gradient-to-br from-black via-[#010101] to-[#25F4EE]/20 text-white mt-0.5 border border-pink-500/30 flex-shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                      <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
+                        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.85.12V9.32a6.34 6.34 0 0 0-.85-.06A6.33 6.33 0 0 0 3.15 15.6a6.34 6.34 0 0 0 9.87 5.29 6.3 6.3 0 0 0 2.8-5.32V8.75a8.28 8.28 0 0 0 4.77 1.5V6.8a4.86 4.86 0 0 1-1-.11z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="text-[11px] font-bold font-mono truncate group-hover:text-pink-400 transition-colors">
+                          TikTok Guide (@etheap)
+                        </div>
+                        <span className="text-[8.5px] px-1 py-0.2 rounded bg-pink-500/15 border border-pink-500/30 text-pink-400 font-mono flex items-center gap-0.5">
+                          <span>Video</span>
+                          <ExternalLink className="w-2 h-2 inline-block" />
+                        </span>
+                      </div>
+                      <p className={`text-[9.5px] leading-tight ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'}`}>
+                        {language === 'kh' ? 'មើលវីដេអូណែនាំការប្រើប្រាស់ & របៀប Login' : 'Watch video guide & login tutorial'}
+                      </p>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}

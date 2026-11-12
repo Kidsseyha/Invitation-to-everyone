@@ -1,0 +1,1812 @@
+import { useState, useRef, type ChangeEvent, type ReactNode } from 'react';
+import {
+  Palette,
+  Upload,
+  Image as ImageIcon,
+  Sparkles,
+  RefreshCw,
+  Layers,
+  Check,
+  Trash2,
+  MapPin,
+  Building2,
+  Eye,
+  EyeOff,
+  Database,
+  Save,
+  Music,
+  Volume2,
+  VolumeX,
+  Play,
+  Pause,
+} from 'lucide-react';
+import { TemplateConfig } from '../types';
+import { FRAME_PRESETS } from '../data/framePresets';
+import { ThemeMode } from './ThemeToggle';
+import bgGold from '../assets/images/khmer_bg_gold_1789308973579.jpg';
+import bgCream from '../assets/images/khmer_bg_cream_1789308990200.jpg';
+import bgGreen from '../assets/images/khmer_bg_green_1789309004847.jpg';
+import bgBlue from '../assets/images/khmer_bg_blue_1789309024242.jpg';
+import bgMandalaCenter from '../assets/images/khmer_pattern_mandala_center_1789310685140.jpg';
+import bgMandalaCorner from '../assets/images/khmer_pattern_mandala_corner_1789310728858.jpg';
+import bgBlueTrellis from '../assets/images/khmer_pattern_blue_trellis_1789310711110.jpg';
+import bgGoldDamask from '../assets/images/khmer_pattern_gold_damask_1789310758959.jpg';
+import bgWhiteEmboss from '../assets/images/khmer_pattern_white_emboss_1789310744125.jpg';
+import bgWhiteFlora from '../assets/images/khmer_pattern_white_flora_1789310779988.jpg';
+import floralWeddingBg from '../assets/images/floral_wedding_bg_1789976357103.jpg';
+import goldLineFloralBg from '../assets/images/gold_line_floral_bg_1789976517431.jpg';
+import whiteRosesRingsBg from '../assets/images/white_roses_rings_bg_1789977043160.jpg';
+import emeraldGoldLotusBg from '../assets/images/emerald_gold_lotus_bg_1789977060891.jpg';
+import babysBreathBeigeBg from '../assets/images/babys_breath_beige_1789977301805.jpg';
+import whiteBlossomPaperBg from '../assets/images/white_blossom_paper_1789977316200.jpg';
+import whiteRosesSageBg from '../assets/images/white_roses_sage_1789977330511.jpg';
+import mochaBeigeFloralBg from '../assets/images/mocha_beige_floral_1789977345755.jpg';
+import terracottaFrameBg from '../assets/images/terracotta_frame_1789977362104.jpg';
+import sepiaLeavesGoldBg from '../assets/images/sepia_leaves_gold_1789977377244.jpg';
+import champagneWreathBg from '../assets/images/champagne_wreath_1789977393470.jpg';
+
+// Imported 9 silk wallpaper presets
+import silkSouthIndianIvoryGold from '../assets/images/silk_south_indian_ivory_gold_1789367733564.jpg';
+import silkElegantRingsFloral from '../assets/images/silk_elegant_rings_floral_1789367748222.jpg';
+import silkMinimalSouthIndian from '../assets/images/silk_minimal_south_indian_1789367759583.jpg';
+import silkPastelSouthIndian from '../assets/images/silk_pastel_south_indian_1789367781968.jpg';
+import silkFlourishMandala from '../assets/images/silk_flourish_mandala_1789367793677.jpg';
+import silkTraditionalIvoryGold from '../assets/images/silk_traditional_ivory_gold_1789367805417.jpg';
+import silkTraditionalTempleSouth from '../assets/images/silk_traditional_temple_south_1789367826825.jpg';
+import silkElegantSoftWhiteGold from '../assets/images/silk_elegant_soft_white_gold_1789367838634.jpg';
+import silkBlueFloralWatercolor from '../assets/images/silk_blue_floral_watercolor_1789367849970.jpg';
+
+interface DesignSettingsSectionProps {
+  config: TemplateConfig;
+  onUpdateConfig: <K extends keyof TemplateConfig>(key: K, value: TemplateConfig[K]) => void;
+  eventImage: string;
+  onUpdateEventImage: (url: string) => void;
+  theme?: ThemeMode;
+  onSave?: () => Promise<void> | void;
+  isSaving?: boolean;
+  children?: React.ReactNode;
+  currentCategory?: string;
+}
+
+// Preset Colors for Cover Invitation EN Name
+export const EN_NAME_COLOR_PRESETS = [
+  { nameKh: 'មាសប្រណិត (Royal Gold)', hex: '#f5b80f' },
+  { nameKh: 'សបរិសុទ្ធ (Pure White)', hex: '#ffffff' },
+  { nameKh: 'មាសខ្ចី (Champagne Gold)', hex: '#fde047' },
+  { nameKh: 'ពណ៌កុលាប (Rose Gold)', hex: '#fb7185' },
+  { nameKh: 'ត្បូងមរកត (Emerald Jade)', hex: '#34d399' },
+  { nameKh: 'ផ្ទៃមេឃ (Diamond Sky)', hex: '#38bdf8' },
+  { nameKh: 'ទឹកក្រូចមាស (Sunset Amber)', hex: '#fb923c' },
+  { nameKh: 'ប្រាក់រលោង (Silver Pearl)', hex: '#e2e8f0' },
+];
+
+// Preset Colors for Envelope & Cameo Monogram
+export const ENVELOPE_COLOR_PRESETS = [
+  { nameKh: 'ក្រហមឈាមជ្រូក (Royal Burgundy)', hex: '#6c2925' },
+  { nameKh: 'មាសប្រណិត (Royal Gold)', hex: '#d4af37' },
+  { nameKh: 'ផ្កាឈូកកុលាប (Rose Blush)', hex: '#b84a58' },
+  { nameKh: 'ត្បូងមរកត (Emerald Green)', hex: '#1c5238' },
+  { nameKh: 'ខៀវរាជវង្ស (Royal Navy)', hex: '#1e3a5f' },
+  { nameKh: 'មាសទង់ដែង (Bronze Copper)', hex: '#8c4a2f' },
+  { nameKh: 'ស្វាយព្រះបរម (Plum Violet)', hex: '#582348' },
+  { nameKh: 'ខ្មៅប្រណិត (Onyx Black)', hex: '#262626' },
+];
+
+export const KHMER_FONT_PRESETS = [
+  { id: 'khmer-os', nameKh: 'Khmer OS (Standard)', fontFamily: "'Khmer OS', 'Khmer OS System', 'Khmer', 'Noto Sans Khmer', sans-serif" },
+  { id: 'khmer-os-moul', nameKh: 'Khmer OS Moul (មូស)', fontFamily: "'Khmer OS Moul', 'Khmer OS Muol Light', 'Moul', serif" },
+  { id: 'khmer-os-battambang', nameKh: 'Khmer OS Battambang (បាត់ដំបង)', fontFamily: "'Khmer OS Battambang', 'Battambang', serif" },
+  { id: 'khmer-os-content', nameKh: 'Khmer OS Content (មាតិកា)', fontFamily: "'Khmer OS Content', 'Content', sans-serif" },
+  { id: 'khmer-os-siemreap', nameKh: 'Khmer OS Siemreap (សៀមរាប)', fontFamily: "'Khmer OS Siemreap', 'Siemreap', sans-serif" },
+  { id: 'khmer-os-freehand', nameKh: 'Khmer OS Freehand (ដៃទទេ)', fontFamily: "'Khmer OS Freehand', 'Freehand', cursive" },
+  { id: 'khmer-os-fasthand', nameKh: 'Khmer OS Fasthand (លឿន)', fontFamily: "'Khmer OS Fasthand', 'Fasthand', cursive" },
+  { id: 'khmer-os-bokor', nameKh: 'Khmer OS Bokor (បូកគោ)', fontFamily: "'Khmer OS Bokor', 'Bokor', display" },
+  { id: 'akbalthom-kbach', nameKh: 'AKbalthom Kbach (ក្បាច់បុរាណ)', fontFamily: "'AKbalthom Kbach', 'AKbalthom-Kbach', 'Moul', serif" },
+  { id: 'kantumruy-pro', nameKh: 'Kantumruy Pro (កន្ទឹមរុយ)', fontFamily: "'Kantumruy Pro', sans-serif" },
+];
+
+export const EN_FONT_PRESETS = [
+  { id: 'norican', nameKh: 'Norican (ដើម)', fontFamily: "'Norican', cursive" },
+  { id: 'great-vibes', nameKh: 'Great Vibes (ប្រណិត)', fontFamily: "'Great Vibes', cursive" },
+  { id: 'alex-brush', nameKh: 'Alex Brush (ទន់ភ្លន់)', fontFamily: "'Alex Brush', cursive" },
+  { id: 'dancing-script', nameKh: 'Dancing Script (រស់រវើក)', fontFamily: "'Dancing Script', cursive" },
+  { id: 'parisienne', nameKh: 'Parisienne (អឺរ៉ុប)', fontFamily: "'Parisienne', cursive" },
+  { id: 'satisfy', nameKh: 'Satisfy (រ៉ូមែនទិក)', fontFamily: "'Satisfy', cursive" },
+  { id: 'playfair', nameKh: 'Playfair (បុរាណ)', fontFamily: "'Playfair Display', serif" },
+  { id: 'cinzel', nameKh: 'Cinzel (រាជវាំង)', fontFamily: "'Cinzel', serif" },
+];
+
+export const PORTRAIT_SHAPE_PRESETS = [
+  { id: 'circle', nameKh: 'រង្វង់មូល (Circle Frame)', desc: 'រាងមូលពេញនិយមសម្រាប់ភ្ជាប់ពាក្យ' },
+  { id: 'arch', nameKh: 'ដំបូលកោង (Artistic Arch)', desc: 'រចនាបែបក្លោងទ្វារមង្គលប្រណិត' },
+  { id: 'rounded', nameKh: 'ជ្រុងមូល (Rounded Frame)', desc: 'ចតុកោណជ្រុងមូលទន់ភ្លន់' },
+  { id: 'oval', nameKh: 'រាងពងក្រពើ (Oval Frame)', desc: 'រាងពងក្រពើអភិជនបុរាណ' },
+  { id: 'heart', nameKh: 'រាងបេះដូង (Romantic Heart)', desc: 'និមិត្តរូបនៃសេចក្តីស្រឡាញ់ផ្អែមល្ហែម' },
+  { id: 'capsule', nameKh: 'រាងគ្រាប់ពេជ្រវែង (Capsule Pill)', desc: 'រាងទ្រវែងកោងសងខាងទាន់សម័យ' },
+  { id: 'leaf', nameKh: 'រាងត្របកផ្កា (Petal Leaf)', desc: 'រចនាកោងជ្រុងត្របកផ្ការ៉ូមែនទិក' },
+  { id: 'square', nameKh: 'រាងការ៉េ (Classic Square)', desc: 'រាងការ៉េបុរាណផ្ចិតផ្ចង់ស្រស់ស្អាត' },
+] as const;
+
+// Authentic Traditional Khmer Wedding Kbach & Silk Wallpaper Background Presets
+export const VENUE_PLACE_PRESETS = [
+  {
+    id: 'pattern-gold',
+    nameKh: 'ក្បាច់មាសរាជវាំង',
+    nameEn: 'Royal Gold Silk',
+    imageUrl: bgGold,
+    previewUrl: bgGold,
+  },
+  {
+    id: 'pattern-cream',
+    nameKh: 'ក្បាច់ក្រែមសបរិសុទ្ធ',
+    nameEn: 'Ivory Cream Silk',
+    imageUrl: bgCream,
+    previewUrl: bgCream,
+  },
+  {
+    id: 'floral-wedding-elegant',
+    nameKh: 'ផ្កាមង្គលការប្រណិត',
+    nameEn: 'Floral Wedding Elegance',
+    imageUrl: floralWeddingBg,
+    previewUrl: floralWeddingBg,
+  },
+  {
+    id: 'gold-line-floral',
+    nameKh: 'ក្បាច់ផ្កាមាសសបរិសុទ្ធ',
+    nameEn: 'Gold Line Floral White',
+    imageUrl: goldLineFloralBg,
+    previewUrl: goldLineFloralBg,
+  },
+  {
+    id: 'pattern-mandala-center',
+    nameKh: 'ក្បាច់មណ្ឌលមាសលើក្រោម',
+    nameEn: 'Gold Center Mandala',
+    imageUrl: bgMandalaCenter,
+    previewUrl: bgMandalaCenter,
+  },
+  {
+    id: 'pattern-mandala-corner',
+    nameKh: 'ក្បាច់មណ្ឌលជ្រុងសងខាង',
+    nameEn: 'Gold Corner Mandala',
+    imageUrl: bgMandalaCorner,
+    previewUrl: bgMandalaCorner,
+  },
+  {
+    id: 'pattern-gold-damask',
+    nameKh: 'ក្បាច់ផ្កាមាសបុរាណ',
+    nameEn: 'Vintage Gold Damask',
+    imageUrl: bgGoldDamask,
+    previewUrl: bgGoldDamask,
+  },
+  {
+    id: 'pattern-white-emboss',
+    nameKh: 'ក្បាច់ក្បឿងសក្រឡោត',
+    nameEn: 'White Embossed Relief',
+    imageUrl: bgWhiteEmboss,
+    previewUrl: bgWhiteEmboss,
+  },
+  {
+    id: 'silk-south-indian-ivory-gold',
+    nameKh: 'ក្បាច់ផ្កាឥណ្ឌាមាសប្រណិត',
+    nameEn: 'Royal Ivory & Gold Floral',
+    imageUrl: silkSouthIndianIvoryGold,
+    previewUrl: silkSouthIndianIvoryGold,
+  },
+  {
+    id: 'silk-elegant-rings-floral',
+    nameKh: 'ផ្កាកុលាប និងក្លោងទ្វារមាស',
+    nameEn: 'Elegant Rings Floral',
+    imageUrl: silkElegantRingsFloral,
+    previewUrl: silkElegantRingsFloral,
+  },
+  {
+    id: 'silk-minimal-south-indian',
+    nameKh: 'ចង្កៀងប្រណិត និងក្បាច់ឥណ្ឌាបុរាណ',
+    nameEn: 'Traditional South Indian Lamp',
+    imageUrl: silkMinimalSouthIndian,
+    previewUrl: silkMinimalSouthIndian,
+  },
+  {
+    id: 'white-roses-gold-rings',
+    nameKh: 'ផ្កាកុលាបស និងចិញ្ចៀនមាស',
+    nameEn: 'White Roses & Gold Rings',
+    imageUrl: whiteRosesRingsBg,
+    previewUrl: whiteRosesRingsBg,
+  },
+  {
+    id: 'silk-flourish-mandala',
+    nameKh: 'មណ្ឌលមាសចាំងពន្លឺ',
+    nameEn: 'Flourish Gold Mandala',
+    imageUrl: silkFlourishMandala,
+    previewUrl: silkFlourishMandala,
+  },
+  {
+    id: 'silk-traditional-ivory-gold',
+    nameKh: 'លម្អស្លឹកចេក និងផ្កាឈូកមង្គល',
+    nameEn: 'Traditional Ivory & Gold Lotus',
+    imageUrl: silkTraditionalIvoryGold,
+    previewUrl: silkTraditionalIvoryGold,
+  },
+  {
+    id: 'babys-breath-beige',
+    nameKh: 'ផ្កាស្មៅតូចៗសប្រណិត',
+    nameEn: "Baby's Breath & Dried Florals",
+    imageUrl: babysBreathBeigeBg,
+    previewUrl: babysBreathBeigeBg,
+  },
+  {
+    id: 'silk-elegant-soft-white-gold',
+    nameKh: 'ផ្កាកុលាបស និងស្លឹកមាស',
+    nameEn: 'Soft White & Gold Roses',
+    imageUrl: silkElegantSoftWhiteGold,
+    previewUrl: silkElegantSoftWhiteGold,
+  },
+  {
+    id: 'silk-blue-floral-watercolor',
+    nameKh: 'គំនូរផ្កាខៀវពណ៌ទឹក',
+    nameEn: 'Blue Floral Watercolor',
+    imageUrl: silkBlueFloralWatercolor,
+    previewUrl: silkBlueFloralWatercolor,
+  },
+  {
+    id: 'white-blossom-paper',
+    nameKh: 'ផ្ការីកសលើក្រដាសក្រឡោត',
+    nameEn: 'White Blossom Art Paper',
+    imageUrl: whiteBlossomPaperBg,
+    previewUrl: whiteBlossomPaperBg,
+  },
+  {
+    id: 'white-roses-sage',
+    nameKh: 'ផ្កាកុលាបស និងស្លឹកបៃតងខ្ចី',
+    nameEn: 'White Roses & Sage Greenery',
+    imageUrl: whiteRosesSageBg,
+    previewUrl: whiteRosesSageBg,
+  },
+  {
+    id: 'mocha-beige-floral',
+    nameKh: 'ផ្កាកាហ្វេទឹកដោះគោរ៉ូមែនទិក',
+    nameEn: 'Mocha Beige Floral Blooms',
+    imageUrl: mochaBeigeFloralBg,
+    previewUrl: mochaBeigeFloralBg,
+  },
+  {
+    id: 'terracotta-frame-roses',
+    nameKh: 'ស៊ុមផ្កាកុលាបពណ៌ដីឥដ្ឋ',
+    nameEn: 'Terracotta Rust Floral Frame',
+    imageUrl: terracottaFrameBg,
+    previewUrl: terracottaFrameBg,
+  },
+  {
+    id: 'sepia-leaves-gold-frame',
+    nameKh: 'ស្លឹកឈើពណ៌ត្នោត និងស៊ុមមាស',
+    nameEn: 'Sepia Leaves & Gold Line Frame',
+    imageUrl: sepiaLeavesGoldBg,
+    previewUrl: sepiaLeavesGoldBg,
+  },
+  {
+    id: 'champagne-gold-wreath',
+    nameKh: 'កម្រងស្លឹកអូលីវមាសឆើតឆាយ',
+    nameEn: 'Champagne Gold Olive Wreath',
+    imageUrl: champagneWreathBg,
+    previewUrl: champagneWreathBg,
+  },
+];
+
+// Presets for Background Music
+export const MUSIC_BACKGROUND_PRESETS = [
+  {
+    id: 'plan-essential',
+    nameKh: 'បទពិណពាទ្យមង្គលការ (Traditional Wedding Melody)',
+    nameEn: 'Plan Essential Official Theme (Default)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-2.mp3',
+    description: 'បទភ្លេងប្រពៃណីខ្មែរសម្រាប់ពិធីមង្គលការ និងកម្មវិធីសិរីមង្គល',
+  },
+  {
+    id: 'khmer-wedding-1',
+    nameKh: 'បទភ្លេងការបុរាណប្រណិត (Classic Khmer Wedding)',
+    nameEn: 'Traditional Khmer Wedding Theme (Audio 1)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-1.mp3',
+    description: 'បទភ្លេងការបុរាណបែបពិណពាទ្យពីរោះរណ្ដំចិត្ត',
+  },
+  {
+    id: 'khmer-roneat',
+    nameKh: 'ឧបករណ៍តន្ត្រីខ្មែរ រនាតឯក (Khmer Instrument - Roneat)',
+    nameEn: 'Khmer Instrument (Roneat)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-7.mp3',
+    description: 'បទភ្លេងឧបករណ៍តន្ត្រីរនាតខ្មែរបុរាណពីរោះរណ្តំពិរោះលន្លង់លន្លោច',
+  },
+  {
+    id: 'angkor-dawn',
+    nameKh: 'អរុណោទ័យអង្គរ (Angkor Dawn)',
+    nameEn: 'Angkor Dawn - Khmer Traditional Instrumental',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-8.mp3',
+    description: 'បទភ្លេងអរុណោទ័យទឹកដីអង្គរបែបប្រពៃណីវប្បធម៌ខ្មែរដ៏ពិសិដ្ឋ',
+  },
+  {
+    id: 'romantic-harmony',
+    nameKh: 'បទភ្លេងមនោសញ្ចេតនាផ្អែមល្ហែម (Romantic Celebration)',
+    nameEn: 'Romantic Celebration Harmony (Audio 3)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-3.mp3',
+    description: 'បទភ្លេងបែបសម័យរ៉ូមែនទិកពិរោះរណ្តំ',
+  },
+  {
+    id: 'wedding-melodies-4',
+    nameKh: 'បទភ្លេងការកម្សាន្តស្រទន់ (Joyful Wedding Melodies)',
+    nameEn: 'Joyful Wedding Melodies (Audio 4)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-4.mp3',
+    description: 'បទភ្លេងការបែបសន្តិភាព ស្រទន់ និងពោរពេញដោយក្តីស្រឡាញ់',
+  },
+  {
+    id: 'royal-wedding-5',
+    nameKh: 'បទភ្លេងការកោះពេជ្រមហាសិរី (Royal Grand Wedding Harmony)',
+    nameEn: 'Royal Grand Wedding Harmony (Audio 5)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-5.mp3',
+    description: 'បទភ្លេងការអធិកអធមបែបពិធីមង្គលការលំដាប់ព្រះរាជពិធី',
+  },
+  {
+    id: 'modern-wedding-6',
+    nameKh: 'បទភ្លេងការសម័យទំនើប (Modern Romantic Wedding)',
+    nameEn: 'Modern Romantic Wedding (Audio 6)',
+    url: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-6.mp3',
+    description: 'បទភ្លេងមង្គលការសម័យថ្មី ផ្អែមល្ហែម និងទាក់ទាញ',
+  },
+];
+
+import { compressImageFile } from '../utils/imageCompressor';
+
+// Helper to compress image
+function compressImage(file: File, maxWidth = 800, maxHeight = 800, quality = 0.68): Promise<string> {
+  return compressImageFile(file, { maxWidth, maxHeight, quality });
+}
+
+interface FilePickerProps {
+  label: string;
+  previewUrl: string;
+  onFileSelected: (url: string) => void;
+  aspectClass?: string;
+  defaultFilename?: string;
+  helpText?: string;
+  extraControls?: ReactNode;
+  theme?: ThemeMode;
+}
+
+function DesignFilePicker({
+  label,
+  previewUrl,
+  onFileSelected,
+  aspectClass = 'aspect-[16/9]',
+  helpText,
+  extraControls,
+  theme = 'dark',
+}: FilePickerProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [fileName, setFileName] = useState<string>('No file chosen');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setIsProcessing(true);
+    try {
+      const dataUrl = await compressImage(file);
+      onFileSelected(dataUrl);
+    } catch (err) {
+      console.error('Error reading image file:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className={`space-y-2.5 p-3.5 rounded-2xl border ${
+      theme === 'light'
+        ? 'bg-amber-50/50 border-amber-200/80 shadow-sm'
+        : 'bg-black/40 border-amber-500/20'
+    }`}>
+      <div className="flex items-center justify-between">
+        <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'} font-khmer`}>
+          {label}
+        </label>
+        {helpText && (
+          <span className={`text-[10px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer`}>
+            {helpText}
+          </span>
+        )}
+      </div>
+
+      {/* Preview Section */}
+      <div className="space-y-1.5">
+        <span className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer`}>Preview</span>
+        <div className={`relative w-full ${aspectClass} rounded-xl overflow-hidden border ${
+          theme === 'light' ? 'border-amber-300 bg-amber-100/30' : 'border-amber-500/30 bg-black'
+        } flex items-center justify-center`}>
+          {previewUrl && previewUrl !== 'none' ? (
+            <img
+              src={previewUrl}
+              alt="Preview"
+              className="w-full h-full object-cover object-center"
+            />
+          ) : previewUrl === 'none' ? (
+            <div className={`flex flex-col items-center gap-1.5 p-3 text-center ${theme === 'light' ? 'text-amber-900' : 'text-amber-500/80'}`}>
+              <EyeOff className={`w-8 h-8 opacity-60 ${theme === 'light' ? 'text-amber-800' : 'text-amber-500'}`} />
+              <span className="text-[10px] font-khmer font-bold leading-normal">លាក់រូបភាពទាំងស្រុង (Hidden Completely)</span>
+            </div>
+          ) : (
+            <div className={`flex flex-col items-center gap-1 ${theme === 'light' ? 'text-neutral-400' : 'text-neutral-500'}`}>
+              <ImageIcon className="w-8 h-8 opacity-40" />
+              <span className="text-[10px]">No image selected</span>
+            </div>
+          )}
+
+          {isProcessing && (
+            <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-amber-300 text-xs font-khmer">
+              <RefreshCw className="w-4 h-4 animate-spin mr-1.5" /> កំពុងបញ្ចូល...
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* File Input Control Line: "No file chosen" + "ដាក់រូបភាព" Button */}
+      <div className="pt-1 flex items-center justify-between gap-2">
+        <div className={`flex-1 truncate text-xs font-mono px-3 py-2 rounded-xl border ${
+          theme === 'light'
+            ? 'bg-white text-neutral-600 border-amber-200'
+            : 'text-neutral-400 bg-black/60 border-neutral-700/50'
+        }`}>
+          {fileName}
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFile}
+          className="hidden"
+        />
+
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-khmer text-xs font-bold shadow-md flex items-center gap-1.5 transition-all shrink-0 active:scale-95"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          <span>ដាក់រូបភាព</span>
+        </button>
+      </div>
+
+      {extraControls}
+    </div>
+  );
+}
+
+export default function DesignSettingsSection({
+  config,
+  onUpdateConfig,
+  eventImage,
+  onUpdateEventImage,
+  theme = 'dark',
+  onSave,
+  isSaving = false,
+  children,
+  currentCategory = 'wedding',
+}: DesignSettingsSectionProps) {
+  const frontColor = config.primaryColor || '#f5b80f';
+  const bottomColor = config.textColor || '#f5b80f';
+  const envelopeColor = config.envelope_theme_color || '#6c2925';
+  const currentFrame = config.envelope_frame || '';
+  const currentBackground = config.main_background || '';
+  const [showPresets, setShowPresets] = useState(true);
+  const [justSaved, setJustSaved] = useState(false);
+  const [appliedAll, setAppliedAll] = useState(false);
+  const [playingPreviewUrl, setPlayingPreviewUrl] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleApplyToAllTemplates = () => {
+    try {
+      localStorage.setItem('wedding_preserve_design_settings', 'true');
+      localStorage.setItem('wedding_global_design_config', JSON.stringify(config));
+      setAppliedAll(true);
+      setTimeout(() => setAppliedAll(false), 3500);
+    } catch (e) {
+      console.warn('Apply to all failed:', e);
+    }
+  };
+
+  const togglePreviewAudio = (url: string) => {
+    if (playingPreviewUrl === url) {
+      previewAudioRef.current?.pause();
+      setPlayingPreviewUrl(null);
+    } else {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      const audio = new Audio(url);
+      previewAudioRef.current = audio;
+      setPlayingPreviewUrl(url);
+      audio.play().catch(() => setPlayingPreviewUrl(null));
+      audio.onended = () => setPlayingPreviewUrl(null);
+    }
+  };
+  const [showSilkPresets, setShowSilkPresets] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('wedding_show_silk_presets');
+      return stored !== null ? stored === 'true' : false;
+    }
+    return false;
+  });
+
+  const handleSaveToDatabase = async () => {
+    if (!onSave) return;
+    try {
+      await onSave();
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 3000);
+    } catch (e) {
+      console.warn('Save failed:', e);
+    }
+  };
+
+  const handleToggleSilkPresets = (val: boolean) => {
+    setShowSilkPresets(val);
+    try {
+      localStorage.setItem('wedding_show_silk_presets', String(val));
+    } catch (e) {}
+  };
+
+  const handleApplyPlaceToBackground = (placeUrl: string) => {
+    onUpdateConfig('main_background', placeUrl);
+    onUpdateConfig('details_background', placeUrl);
+  };
+
+  const handleClearBackground = () => {
+    onUpdateConfig('main_background', '');
+    onUpdateConfig('details_background', '');
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Title Header with Quick Save Action */}
+      <div className={`w-full flex items-center justify-between gap-2 pb-2.5 border-b ${
+        theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+      }`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`w-8 h-8 rounded-xl ${theme === 'light' ? 'bg-amber-200 text-amber-950 border border-amber-300' : 'bg-amber-400/20 text-amber-300 border border-amber-400/30'} flex items-center justify-center shadow-xs shrink-0`}>
+            <Palette className="w-4 h-4" />
+          </div>
+          <h4 className={`text-sm sm:text-base font-black font-moul tracking-wide ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+            ការរចនា
+          </h4>
+          <span className={`text-xs font-bold font-khmer ${theme === 'light' ? 'text-neutral-700' : 'text-amber-300/80'} hidden sm:inline`}>
+            Theme & Styling Settings
+          </span>
+        </div>
+
+        {/* Actions in Top Header */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleApplyToAllTemplates}
+            className={`px-2.5 py-1.5 rounded-xl font-khmer font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer ${
+              appliedAll
+                ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                : theme === 'light'
+                ? 'bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 border border-amber-300/80'
+                : 'bg-black/60 hover:bg-black/80 text-amber-300 border border-amber-400/30'
+            }`}
+            title="អនុវត្តការរចនា & ការកំណត់នេះទៅគ្រប់គំរូប្លង់ទាំងអស់"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>{appliedAll ? '✓ បានអនុវត្តទៅគ្រប់គំរូ' : 'អនុវត្តទៅគ្រប់គំរូ'}</span>
+          </button>
+
+          {onSave && (
+            <div className="flex items-center gap-2">
+              {justSaved && (
+                <span className="text-[11px] font-khmer font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-pulse">
+                  <Check className="w-3.5 h-3.5" /> បានរក្សាទុក!
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveToDatabase}
+                disabled={isSaving}
+                className={`px-3 py-1.5 rounded-xl font-khmer font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer ${
+                  isSaving
+                    ? 'opacity-70 cursor-wait bg-amber-400 text-amber-950'
+                    : justSaved
+                    ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                    : 'bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 hover:brightness-105 border border-amber-300'
+                }`}
+                title="រក្សាទុកការរចនាទៅក្នុង Database"
+              >
+                {isSaving ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : justSaved ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Database className="w-3.5 h-3.5" />
+                )}
+                <span>{isSaving ? 'កំពុងរក្សាទុក...' : justSaved ? 'បានរក្សាទុក ✓' : 'រក្សាទុក Database'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Inserted Top Content (e.g. Cover Preview) right below Title Header */}
+      {children}
+
+      {/* Colors Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* 1. ពណ៌អក្សរខាងមុខ */}
+        <div className={`p-3.5 rounded-2xl border space-y-2 ${
+          theme === 'light' ? 'bg-amber-50/50 border-amber-200/80 shadow-sm' : 'bg-black/40 border-amber-500/20'
+        }`}>
+          <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'} font-khmer`}>
+            ពណ៌អក្សរខាងមុខ
+          </label>
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex items-center">
+              <input
+                type="color"
+                value={frontColor}
+                onChange={(e) => onUpdateConfig('primaryColor', e.target.value)}
+                className="w-10 h-10 rounded-xl cursor-pointer bg-transparent border-0 p-0"
+              />
+            </div>
+            <input
+              type="text"
+              value={frontColor}
+              onChange={(e) => onUpdateConfig('primaryColor', e.target.value)}
+              className={`flex-1 px-3 py-2 rounded-xl border font-mono text-xs focus:outline-none ${
+                theme === 'light'
+                  ? 'bg-white border-amber-300 text-neutral-900 focus:border-amber-500'
+                  : 'bg-black/60 border-amber-500/30 text-amber-100 focus:border-amber-400'
+              }`}
+              placeholder="#f5b80f"
+            />
+          </div>
+          <p className={`text-[10px] ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'} font-khmer`}>
+            សម្រាប់ចំណងជើងធំ ឈ្មោះកូនកំលោះ-កូនក្រមុំ និងប័ណ្ណកិត្តិយស
+          </p>
+        </div>
+
+        {/* 2. ពណ៌អក្សរខាងក្រោម */}
+        <div className={`p-3.5 rounded-2xl border space-y-2 ${
+          theme === 'light' ? 'bg-amber-50/50 border-amber-200/80 shadow-sm' : 'bg-black/40 border-amber-500/20'
+        }`}>
+          <label className={`block text-xs font-semibold ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'} font-khmer`}>
+            ពណ៌អក្សរខាងក្រោម
+          </label>
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex items-center">
+              <input
+                type="color"
+                value={bottomColor}
+                onChange={(e) => onUpdateConfig('textColor', e.target.value)}
+                className="w-10 h-10 rounded-xl cursor-pointer bg-transparent border-0 p-0"
+              />
+            </div>
+            <input
+              type="text"
+              value={bottomColor}
+              onChange={(e) => onUpdateConfig('textColor', e.target.value)}
+              className={`flex-1 px-3 py-2 rounded-xl border font-mono text-xs focus:outline-none ${
+                theme === 'light'
+                  ? 'bg-white border-amber-300 text-neutral-900 focus:border-amber-500'
+                  : 'bg-black/60 border-amber-500/30 text-amber-100 focus:border-amber-400'
+              }`}
+              placeholder="#f5b80f"
+            />
+          </div>
+          <p className={`text-[10px] ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'} font-khmer`}>
+            សម្រាប់កាលបរិច្ឆេទ ទីតាំង ព័ត៌មានលម្អិត និងសារថ្លែងអំណរគុណ
+          </p>
+        </div>
+
+        {/* 3. ពណ៌រចនាបទសំបុត្រ & ត្រា Cameo Monogram */}
+        <div className={`p-4 rounded-2xl border space-y-3 col-span-1 sm:col-span-2 ${
+          theme === 'light'
+            ? 'bg-amber-50/60 border-amber-200/90 shadow-sm'
+            : 'bg-gradient-to-br from-amber-950/25 via-black/50 to-black/80 border-amber-500/30'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-amber-200/50 dark:border-amber-500/20">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-5 h-5 rounded-full border-2 border-white/80 shadow-md flex items-center justify-center shrink-0"
+                style={{ backgroundColor: envelopeColor }}
+              />
+              <div>
+                <label className={`block text-xs font-bold ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'} font-khmer`}>
+                  ពណ៌រចនាបទសំបុត្រ & ត្រា Cameo Monogram (Envelope & Monogram Accent Color)
+                </label>
+                <p className={`text-[10px] ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'} font-khmer`}>
+                  កែពណ៌ចំណងជើងសំបុត្រ (សិរីមង្គល អាពាហ៍ពិពាហ៍), ក្បាច់ត្រា Cameo Monogram, ពាក្យសូមគោរពអញ្ជើញ និងប៊ូតុងបើកសំបុត្រ
+                </p>
+              </div>
+            </div>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md border font-bold ${
+              theme === 'light' ? 'bg-white border-amber-300 text-amber-950' : 'bg-black/60 border-amber-500/40 text-amber-300'
+            }`}>
+              {envelopeColor}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex items-center">
+              <input
+                id="envelope-color-picker"
+                type="color"
+                value={envelopeColor}
+                onChange={(e) => onUpdateConfig('envelope_theme_color', e.target.value)}
+                className="w-10 h-10 rounded-xl cursor-pointer bg-transparent border-0 p-0 shadow-sm"
+              />
+            </div>
+            <input
+              id="envelope-color-hex-input"
+              type="text"
+              value={envelopeColor}
+              onChange={(e) => onUpdateConfig('envelope_theme_color', e.target.value)}
+              className={`flex-1 px-3 py-2 rounded-xl border font-mono text-xs font-bold focus:outline-none ${
+                theme === 'light'
+                  ? 'bg-white border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                  : 'bg-black/60 border-amber-500/30 text-amber-100 focus:border-amber-400'
+              }`}
+              placeholder="#6c2925"
+            />
+          </div>
+
+          {/* Quick Theme Palettes */}
+          <div className="space-y-1.5 pt-1">
+            <span className={`text-[10px] font-khmer font-semibold ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'}`}>
+              ក្ដារពណ៌ពេញនិយម (Quick Theme Palettes) ៖
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {ENVELOPE_COLOR_PRESETS.map((preset, idx) => {
+                const isActive = envelopeColor.toLowerCase() === preset.hex.toLowerCase();
+                return (
+                  <button
+                    key={`env-col-${preset.hex}-${idx}`}
+                    type="button"
+                    onClick={() => onUpdateConfig('envelope_theme_color', preset.hex)}
+                    className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-khmer flex items-center gap-2 transition-all cursor-pointer ${
+                      isActive
+                        ? theme === 'light'
+                          ? 'border-amber-500 bg-amber-100/90 text-amber-950 font-bold shadow-xs ring-2 ring-amber-400'
+                          : 'border-amber-400 bg-amber-400/20 text-amber-200 font-bold shadow-xs ring-2 ring-amber-400'
+                        : theme === 'light'
+                        ? 'border-amber-200/80 bg-white/70 hover:bg-amber-50 text-neutral-800'
+                        : 'border-white/10 bg-white/5 hover:bg-white/10 text-neutral-300'
+                    }`}
+                  >
+                    <span
+                      className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs border border-white/50"
+                      style={{ backgroundColor: preset.hex }}
+                    />
+                    <span className="truncate">{preset.nameKh}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2.5. ពណ៌ និងចំណងជើងឈ្មោះអង់គ្លេសលើ Cover (Cover EN Name Style & Subtitle) */}
+      <div className={`p-4 rounded-2xl border space-y-3.5 ${
+        theme === 'light'
+          ? 'bg-amber-50/60 border-amber-200/90 shadow-sm'
+          : 'bg-gradient-to-br from-amber-950/30 via-black/60 to-black/80 border-amber-500/30'
+      }`}>
+        <div className={`flex items-center justify-between pb-2 border-b ${
+          theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-lg ${theme === 'light' ? 'bg-amber-200 text-amber-950' : 'bg-amber-400/20 text-amber-300'} flex items-center justify-center`}>
+              <Sparkles className="w-4 h-4 text-amber-500" />
+            </div>
+            <div>
+              <h4 className={`text-xs sm:text-sm font-bold font-moul ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                ពណ៌ឈ្មោះអង់គ្លេស និងចំណងជើងកោងលើ Cover (Cover EN Style & Subtitle)
+              </h4>
+              <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer`}>
+                កំណត់ពណ៌ឈ្មោះអក្សរឡាតាំង/អង់គ្លេស និងចំណងជើងកោងលើសំបុត្របើក (Envelope Cover)
+              </p>
+            </div>
+          </div>
+
+          {onSave && (
+            <button
+              type="button"
+              onClick={handleSaveToDatabase}
+              disabled={isSaving}
+              className={`px-2.5 py-1 rounded-lg text-xs font-khmer font-bold flex items-center gap-1.5 border transition-all active:scale-95 shadow-xs cursor-pointer ${
+                justSaved
+                  ? 'bg-emerald-500 text-white border-emerald-400'
+                  : theme === 'light'
+                  ? 'bg-amber-200/80 hover:bg-amber-300 text-amber-950 border-amber-400'
+                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+              }`}
+              title="រក្សាទុកការផ្លាស់ប្តូរ Cover ទៅក្នុង Database"
+            >
+              {isSaving ? (
+                <RefreshCw className="w-3 h-3 animate-spin" />
+              ) : justSaved ? (
+                <Check className="w-3 h-3" />
+              ) : (
+                <Save className="w-3 h-3" />
+              )}
+              <span>{justSaved ? 'បានរក្សាទុក' : 'រក្សាទុក (Save)'}</span>
+            </button>
+          )}
+        </div>
+
+        {/* ពណ៌ឈ្មោះអង់គ្លេសលើ Cover */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className={`text-xs font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+              ពណ៌ឈ្មោះអង់គ្លេសលើ Cover (EN Name Color):
+            </label>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-6 h-6 rounded-full border-2 border-white/80 shadow flex items-center justify-center shrink-0"
+                style={{ backgroundColor: config.cover_en_name_color || '#ffffff' }}
+              />
+              <input
+                type="color"
+                value={config.cover_en_name_color || '#ffffff'}
+                onChange={(e) => onUpdateConfig('cover_en_name_color', e.target.value)}
+                className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Quick sync buttons to top and bottom envelope text colors */}
+            <button
+              type="button"
+              onClick={() => onUpdateConfig('cover_en_name_color', frontColor)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-khmer transition-all border flex items-center gap-1.5 ${
+                (config.cover_en_name_color || '').toLowerCase() === frontColor.toLowerCase()
+                  ? 'border-amber-400 ring-2 ring-amber-400/40 font-bold bg-amber-400/20 text-amber-300'
+                  : theme === 'light'
+                  ? 'bg-amber-100/70 border-amber-300 text-amber-950 hover:bg-amber-200'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-200 hover:bg-amber-500/20'
+              }`}
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0 shadow-sm"
+                style={{ backgroundColor: frontColor }}
+              />
+              <span>ដូចពណ៌អក្សរខាងលើនៃសំបុត្រ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onUpdateConfig('cover_en_name_color', bottomColor)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-khmer transition-all border flex items-center gap-1.5 ${
+                (config.cover_en_name_color || '').toLowerCase() === bottomColor.toLowerCase()
+                  ? 'border-amber-400 ring-2 ring-amber-400/40 font-bold bg-amber-400/20 text-amber-300'
+                  : theme === 'light'
+                  ? 'bg-amber-100/70 border-amber-300 text-amber-950 hover:bg-amber-200'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-200 hover:bg-amber-500/20'
+              }`}
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0 shadow-sm"
+                style={{ backgroundColor: bottomColor }}
+              />
+              <span>ដូចពណ៌អក្សរខាងក្រោមនៃសំបុត្រ</span>
+            </button>
+
+            {EN_NAME_COLOR_PRESETS.map((item, idx) => (
+              <button
+                key={`en-name-col-${item.hex}-${idx}`}
+                type="button"
+                onClick={() => onUpdateConfig('cover_en_name_color', item.hex)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-khmer transition-all border flex items-center gap-1.5 ${
+                  (config.cover_en_name_color || '#ffffff').toLowerCase() === item.hex.toLowerCase()
+                    ? 'border-amber-400 ring-2 ring-amber-400/40 font-bold ' + (theme === 'light' ? 'bg-amber-100 text-amber-950' : 'bg-black/60 text-amber-200')
+                    : theme === 'light'
+                    ? 'bg-white border-amber-200 text-neutral-700 hover:border-amber-400 hover:bg-amber-50/50'
+                    : 'bg-black/40 border-white/10 text-neutral-300 hover:border-amber-400/40 hover:text-amber-200'
+                }`}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full border border-black/20 shrink-0"
+                  style={{ backgroundColor: item.hex }}
+                />
+                <span>{item.nameKh}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ម៉ូតអក្សរឈ្មោះអង់គ្លេស (EN Name Font Style) */}
+        <div className="space-y-2 pt-2 border-t border-amber-500/20">
+          <div className="flex items-center justify-between">
+            <label className={`text-xs font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+              ម៉ូតអក្សរឈ្មោះអង់គ្លេស (EN Name Font Style):
+            </label>
+            <span className="text-[10px] font-khmer opacity-75">ចុចដើម្បីប្តូរម៉ូតអក្សរ</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {EN_FONT_PRESETS.map((font, idx) => {
+              const currentFont = config.cover_en_font_family || "'Norican', cursive";
+              const isSelected = currentFont === font.fontFamily;
+              return (
+                <button
+                  key={`en-font-${font.id}-${idx}`}
+                  type="button"
+                  onClick={() => onUpdateConfig('cover_en_font_family', font.fontFamily)}
+                  className={`p-2 rounded-xl border text-left transition-all flex flex-col gap-0.5 active:scale-95 ${
+                    isSelected
+                      ? 'border-amber-400 ring-2 ring-amber-400/40 font-bold bg-amber-400/20 text-amber-300'
+                      : theme === 'light'
+                      ? 'bg-white border-amber-200 text-neutral-800 hover:border-amber-400 hover:bg-amber-50/50'
+                      : 'bg-black/40 border-white/10 text-amber-100 hover:border-amber-400/40'
+                  }`}
+                >
+                  <span className="text-[10px] font-khmer opacity-75">{font.nameKh}</span>
+                  <span
+                    className="text-sm truncate"
+                    style={{ fontFamily: font.fontFamily, color: config.cover_en_name_color || '#ffffff' }}
+                  >
+                    Malay & Volak
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* រាងរូបថតគូស្នេហ៍ (Couple Photo Frame Shape) */}
+        <div className="space-y-2 pt-2 border-t border-amber-500/20">
+          <div className="flex items-center justify-between">
+            <label className={`text-xs font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+              រាងរូបថតគូស្នេហ៍ (Photo Frame Shape):
+            </label>
+            <span className="text-[10px] font-khmer opacity-75">រង្វង់មូលសម្រាប់ភ្ជាប់ពាក្យ</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {PORTRAIT_SHAPE_PRESETS.map((shape, idx) => {
+              const currentShape = config.portrait_shape || 'rounded';
+              const isSelected = currentShape === shape.id;
+              return (
+                <button
+                  key={`shape-${shape.id}-${idx}`}
+                  type="button"
+                  onClick={() => onUpdateConfig('portrait_shape', shape.id)}
+                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 active:scale-95 ${
+                    isSelected
+                      ? 'border-amber-400 ring-2 ring-amber-400/40 font-bold bg-amber-400/20 text-amber-300'
+                      : theme === 'light'
+                      ? 'bg-white border-amber-200 text-neutral-800 hover:border-amber-400 hover:bg-amber-50/50'
+                      : 'bg-black/40 border-white/10 text-amber-100 hover:border-amber-400/40'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-khmer font-bold">{shape.nameKh.split(' ')[0]}</span>
+                    {shape.id === 'heart' ? (
+                      <svg className="w-4 h-4 text-amber-400 fill-amber-400/30 stroke-current stroke-1" viewBox="0 0 24 24">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                      </svg>
+                    ) : (
+                      <div
+                        className={`border border-amber-400/80 bg-amber-400/20 ${
+                          shape.id === 'circle'
+                            ? 'w-4 h-4 rounded-full'
+                            : shape.id === 'arch'
+                            ? 'w-3.5 h-4 rounded-t-full rounded-b-xs'
+                            : shape.id === 'oval'
+                            ? 'w-3.5 h-4 rounded-[50%]'
+                            : shape.id === 'capsule'
+                            ? 'w-3 h-4 rounded-full'
+                            : shape.id === 'leaf'
+                            ? 'w-4 h-4 rounded-tl-xl rounded-br-xl rounded-tr-xs rounded-bl-xs'
+                            : shape.id === 'square'
+                            ? 'w-3.5 h-3.5 rounded-none'
+                            : 'w-4 h-3.5 rounded-md'
+                        }`}
+                      />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-khmer opacity-70 leading-tight">
+                    {shape.desc}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ចំណងជើងកោងលើ Cover (Khmer & English Subtitle) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-500/20">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className={`block text-[11px] font-khmer font-semibold ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                ចំណងជើងកោង (ភាសាខ្មែរ):
+              </label>
+              {config.invitation_kh?.main_title && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateConfig('cover_subtitle_kh', config.invitation_kh.main_title);
+                    if (config.invitation_en?.main_title) {
+                      onUpdateConfig('cover_subtitle_en', config.invitation_en.main_title);
+                    }
+                  }}
+                  className="text-[10px] text-amber-600 dark:text-amber-400 hover:text-amber-500 font-khmer font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                  title="ទាញយកព័ត៌មានពីចំណងជើងធំ (Main Title)"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>ទាញយកពី ចំណងជើងធំ</span>
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={config.cover_subtitle_kh || ''}
+              onChange={(e) => onUpdateConfig('cover_subtitle_kh', e.target.value)}
+              placeholder={config.invitation_kh?.main_title || "សិរីសួស្តី អាពាហ៍ពិពាហ៍"}
+              className={`w-full px-3 py-1.5 rounded-xl text-xs font-khmer focus:outline-none ${
+                theme === 'light'
+                  ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500'
+                  : 'bg-black/60 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+              }`}
+            />
+            {config.invitation_kh?.main_title && (
+              <p className={`text-[10px] mt-1 font-khmer flex items-center gap-1 ${theme === 'light' ? 'text-amber-950/70' : 'text-amber-400/80'}`}>
+                <span>ចំណងជើងធំ ៖</span>
+                <button
+                  type="button"
+                  onClick={() => onUpdateConfig('cover_subtitle_kh', config.invitation_kh.main_title)}
+                  className="font-bold underline cursor-pointer hover:text-amber-500 text-left"
+                >
+                  {config.invitation_kh.main_title}
+                </button>
+              </p>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className={`block text-[11px] font-khmer font-semibold ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                Curved Subtitle (English):
+              </label>
+              {config.invitation_en?.main_title && (
+                <button
+                  type="button"
+                  onClick={() => onUpdateConfig('cover_subtitle_en', config.invitation_en.main_title)}
+                  className="text-[10px] text-amber-600 dark:text-amber-400 hover:text-amber-500 font-khmer font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                  title="Pull from English Main Title"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>ទាញយកពី Main Title (EN)</span>
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={config.cover_subtitle_en || ''}
+              onChange={(e) => onUpdateConfig('cover_subtitle_en', e.target.value)}
+              placeholder={config.invitation_en?.main_title || "ROYAL WEDDING INVITATION"}
+              className={`w-full px-3 py-1.5 rounded-xl text-xs font-norican focus:outline-none ${
+                theme === 'light'
+                  ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500'
+                  : 'bg-black/60 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+              }`}
+            />
+          </div>
+        </div>
+
+        {/* ទម្រង់រាងអក្សរចំណងជើង (Title Text Shape / Curved Options) */}
+        <div className="space-y-2 pt-2.5 border-t border-amber-500/20">
+          <div className="flex items-center justify-between">
+            <label className={`text-xs font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+              ទម្រង់រាងអក្សរចំណងជើង (Title Style & Shape):
+            </label>
+            <span className="text-[10px] font-khmer opacity-75">ជម្រើសអក្សរត្រង់ ឬកោង</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: 'straight', labelKh: 'អក្សរត្រង់ (Straight)', desc: 'ទម្រង់អក្សររាយស្មើត្រង់បុរាណ' },
+              { id: 'arch-up', labelKh: 'អក្សរកោងឡើង (Arch Up)', desc: 'ទម្រង់អក្សរកោងឡើងលើរាងក្លោងទ្វារ' },
+              { id: 'arch-down', labelKh: 'អក្សរកោងចុះ (Arc Down)', desc: 'ទម្រង់អក្សរកោងចុះក្រោមរាងស្នាមញញឹម' },
+              { id: 'wave', labelKh: 'អក្សររលក (Wave Shape)', desc: 'ទម្រង់អក្សររលកទឹកទន់ភ្លន់' },
+            ].map((shapeOption) => {
+              const currentShape = config.title_text_shape || 'straight';
+              const isSelected = currentShape === shapeOption.id;
+              return (
+                <button
+                  key={`title-shape-${shapeOption.id}`}
+                  type="button"
+                  onClick={() => onUpdateConfig('title_text_shape', shapeOption.id as any)}
+                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 active:scale-95 cursor-pointer ${
+                    isSelected
+                      ? 'border-amber-400 ring-2 ring-amber-400/40 font-bold bg-amber-400/20 text-amber-300'
+                      : theme === 'light'
+                      ? 'bg-white border-amber-200 text-neutral-800 hover:border-amber-400 hover:bg-amber-50/50'
+                      : 'bg-black/40 border-white/10 text-amber-100 hover:border-amber-400/40'
+                  }`}
+                >
+                  <span className="text-xs font-khmer font-bold">{shapeOption.labelKh}</span>
+                  <span className="text-[10px] font-khmer opacity-70 leading-tight">{shapeOption.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. រូបថតគូស្នេហ៍ចម្បង (Hero Portrait Photo) */}
+      <DesignFilePicker
+        label="រូបថតគូស្នេហ៍ចម្បង (Main Couple Portrait)"
+        previewUrl={eventImage || config.main_background}
+        onFileSelected={(url) => onUpdateEventImage(url)}
+        aspectClass="aspect-[3/4] w-48 mx-auto"
+        helpText="រូបថតបង្ហាញនៅចំកណ្តាលលិខិតអញ្ជើញ (Shown in the middle of the invitation)"
+        theme={theme}
+      />
+
+      {/* 3.5. រូបភាពផ្ទៃខាងក្រោយទំព័រមុខដំបូង (Infront / First Webpage Cover Background) */}
+      <div className={`space-y-3 p-4 rounded-2xl border shadow-xl ${
+        theme === 'light'
+          ? 'bg-amber-50/50 border-amber-200/90'
+          : 'bg-gradient-to-br from-black via-black/80 to-black border-amber-500/35'
+      }`}>
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b ${
+          theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-lg ${theme === 'light' ? 'bg-amber-200 text-amber-950' : 'bg-amber-400/20 text-amber-300'} flex items-center justify-center shrink-0`}>
+              <Sparkles className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <h4 className={`text-xs sm:text-sm font-bold font-moul ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                រូបភាពផ្ទៃខាងក្រោយទំព័រមុខដំបូង (Infront / First Page Cover Background)
+              </h4>
+              <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer`}>
+                រូបភាពផ្ទៃខាងក្រោយសម្រាប់ផ្ទាំងក្របសំបុត្រអញ្ជើញនៅទំព័រមុខដំបូងគេ (Infront Envelope Background)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+            {/* Save to Database Button */}
+            {onSave && (
+              <button
+                type="button"
+                onClick={handleSaveToDatabase}
+                disabled={isSaving}
+                className={`px-2.5 py-1 rounded-lg text-xs font-khmer font-bold flex items-center gap-1.5 border transition-all active:scale-95 shadow-xs cursor-pointer ${
+                  justSaved
+                    ? 'bg-emerald-500 text-white border-emerald-400'
+                    : theme === 'light'
+                    ? 'bg-amber-200/80 hover:bg-amber-300 text-amber-950 border-amber-400'
+                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
+                }`}
+                title="រក្សាទុកការផ្លាស់ប្តូររូបភាពផ្ទៃខាងក្រោយទៅក្នុង Database"
+              >
+                {isSaving ? (
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                ) : justSaved ? (
+                  <Check className="w-3 h-3" />
+                ) : (
+                  <Save className="w-3 h-3" />
+                )}
+                <span>{justSaved ? 'បានរក្សាទុក' : 'រក្សាទុក (Save)'}</span>
+              </button>
+            )}
+
+            {/* Hide / Release (បិទ/លែងលាក់) Button */}
+            <button
+              type="button"
+              onClick={() => onUpdateConfig('hide_cover_background', !config.hide_cover_background)}
+              className={`px-2.5 py-1 rounded-lg border font-khmer font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 ${
+                config.hide_cover_background
+                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 ring-1 ring-emerald-400/30'
+                  : theme === 'light'
+                  ? 'bg-amber-100 hover:bg-amber-200/80 text-amber-900 border-amber-300'
+                  : 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border-amber-500/30'
+              }`}
+              title={config.hide_cover_background ? 'លែងលាក់/បង្ហាញរូបភាព (Release/Show)' : 'បិទ/លាក់រូបភាព (Hide/Ride)'}
+            >
+              {config.hide_cover_background ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>លែងលាក់ (Release)</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-amber-500" />
+                  <span>បិទ/លាក់ (Hide)</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* When hidden, show compact status alert; when released, show presets and upload controls */}
+        {config.hide_cover_background ? (
+          <div className={`p-4 rounded-xl border text-center flex flex-col items-center justify-center gap-2 ${
+            theme === 'light' ? 'bg-amber-100/50 border-amber-300 text-amber-950' : 'bg-black/50 border-amber-500/30 text-amber-200'
+          }`}>
+            <EyeOff className="w-6 h-6 text-amber-500" />
+            <div className="text-xs font-khmer font-bold">
+              ផ្ទាំងរូបភាពខាងមុខធៀបត្រូវបានបិទ/លាក់ (Cover Background is Hidden)
+            </div>
+            <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer max-w-sm`}>
+              ផ្ទាំងក្របសំបុត្រអញ្ជើញខាងមុខនឹងមិនបង្ហាញរូបភាពផ្ទៃខាងក្រោយឡើយ។ ចុច «លែងលាក់ (Release)» ដើម្បីបើកបង្ហាញ និងជ្រើសរើសរូបភាពឡើងវិញ។
+            </p>
+            <button
+              type="button"
+              onClick={() => onUpdateConfig('hide_cover_background', false)}
+              className="mt-1 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-khmer text-xs font-bold shadow flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>លែងលាក់ (Release & Show Presets)</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Custom Upload for Cover Background */}
+            <DesignFilePicker
+              label="ឬបញ្ចូលរូបភាពផ្ទៃខាងក្រោយទំព័រមុខផ្ទាល់ខ្លួន (Custom Upload for Infront Cover)"
+              previewUrl={config.cover_background || ''}
+              onFileSelected={(url) => {
+                onUpdateConfig('cover_background', url);
+                if (config.hide_cover_background) {
+                  onUpdateConfig('hide_cover_background', false);
+                }
+              }}
+              aspectClass="aspect-[16/9] w-full"
+              helpText="រូបភាពផ្ទៃខាងក្រោយសម្រាប់ក្របសំបុត្រអញ្ជើញខាងមុខ (Infront Envelope Screen)"
+              theme={theme}
+            />
+          </>
+        )}
+      </div>
+
+      {/* 4. ការរចនាស៊ុមស្លាកឈ្មោះភ្ញៀវ (Guest Name Label & Frame Design) */}
+      <div className={`p-4 rounded-2xl border space-y-3.5 ${
+        theme === 'light'
+          ? 'bg-amber-50/50 border-amber-200/80 shadow-md'
+          : 'bg-gradient-to-br from-amber-950/40 via-black/60 to-black/80 border-amber-500/30'
+      }`}>
+        <div className={`flex items-center justify-between pb-2 border-b ${
+          theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-lg ${theme === 'light' ? 'bg-amber-200 text-amber-950' : 'bg-amber-400/20 text-amber-300'} flex items-center justify-center`}>
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className={`text-xs sm:text-sm font-bold font-moul ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                ការរចនាស៊ុមស្លាកឈ្មោះភ្ញៀវ (Guest Label Design)
+              </h4>
+              <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer`}>
+                មានកន្លែងបញ្ចូលរូបភាព ស៊ុម/ស្លាកឈ្មោះ សម្រាប់ប្រើលើឈ្មោះភ្ញៀវមុនពេលបើកសំបុត្រ
+              </p>
+            </div>
+          </div>
+          {currentFrame && (
+            <button
+              type="button"
+              onClick={() => onUpdateConfig('envelope_frame', '')}
+              className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-500 border border-rose-500/30 text-[11px] font-khmer flex items-center gap-1 transition-all"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>កំណត់ដើម</span>
+            </button>
+          )}
+        </div>
+
+
+
+        {/* Guest Name Typography & Colors */}
+        <div className="pt-3.5 border-t border-dashed border-amber-500/20 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            <h5 className={`text-xs font-bold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-300'}`}>
+              កំណត់រចនាប័ទ្មអក្សរឈ្មោះភ្ញៀវ (Guest Name Typography & Colors)
+            </h5>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Color selection */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className={`text-[11px] font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-300/80'}`}>
+                  ពណ៌អក្សរឈ្មោះភ្ញៀវ (Guest Name Color):
+                </label>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded-full border-2 border-white/80 shadow flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: config.guestNameColor || '#364153' }}
+                  />
+                  <input
+                    type="color"
+                    value={config.guestNameColor || '#364153'}
+                    onChange={(e) => onUpdateConfig('guestNameColor', e.target.value)}
+                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { nameKh: 'ខៀវចាស់', hex: '#172554' },
+                  { nameKh: 'មាសប្រណិត', hex: '#b47d10' },
+                  { nameKh: 'ត្នោតចាស់', hex: '#451a03' },
+                  { nameKh: 'ក្រហមទុំ', hex: '#991b1b' },
+                  { nameKh: 'ស', hex: '#ffffff' },
+                  { nameKh: 'ខ្មៅ', hex: '#000000' },
+                ].map((item, idx) => (
+                  <button
+                    key={`guest-col-${item.hex}-${idx}`}
+                    type="button"
+                    onClick={() => onUpdateConfig('guestNameColor', item.hex)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-khmer border transition-all ${
+                      (config.guestNameColor || '#364153').toLowerCase() === item.hex.toLowerCase()
+                        ? 'border-amber-400 ring-1 ring-amber-400 bg-amber-400/20 text-amber-300 font-bold'
+                        : theme === 'light'
+                        ? 'bg-white border-amber-200 text-neutral-700 hover:border-amber-400'
+                        : 'bg-black/40 border-white/10 text-neutral-300 hover:border-amber-400/40'
+                    }`}
+                  >
+                    {item.nameKh}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Font size selection slider */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className={`text-[11px] font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-300/80'}`}>
+                  ទំហំអក្សរឈ្មោះភ្ញៀវ (Font Size):
+                </label>
+                <span className={`text-[11px] font-mono font-bold ${theme === 'light' ? 'text-amber-950' : 'text-amber-300'}`}>
+                  {config.guest_name_font_size || '20'}px
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] opacity-70">12px</span>
+                <input
+                  type="range"
+                  min="12"
+                  max="32"
+                  value={parseInt(config.guest_name_font_size || '20')}
+                  onChange={(e) => onUpdateConfig('guest_name_font_size', e.target.value)}
+                  className="flex-1 accent-amber-500 h-1.5 bg-neutral-200 dark:bg-neutral-850 rounded-lg cursor-pointer"
+                />
+                <span className="text-[10px] opacity-70">32px</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Font family selection */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className={`text-[11px] font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-300/80'}`}>
+                ជ្រើសរើសម៉ូតអក្សរឈ្មោះភ្ញៀវ (Guest Name Font Style):
+              </label>
+              <span className="text-[10px] font-khmer opacity-75">ចុចដើម្បីប្តូរម៉ូតអក្សរ</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { id: 'default', nameKh: 'ម៉ូតលំនាំដើម', fontFamily: '' },
+                { id: 'akbalthom-kbach', nameKh: 'AKbalthom Kbach (ក្បាច់)', fontFamily: "'AKbalthom Kbach', 'AKbalthom-Kbach', 'Moul', serif" },
+                { id: 'moul', nameKh: 'Moul (មូល)', fontFamily: "'Moul', serif" },
+                { id: 'moulpali', nameKh: 'Moulpali (មូលបាលី)', fontFamily: "'Moulpali', serif" },
+                { id: 'kantumruy', nameKh: 'Kantumruy (កន្ទុមរុយ)', fontFamily: "'Kantumruy Pro', sans-serif" },
+                { id: 'norican', nameKh: 'Norican (ចំហៀង)', fontFamily: "'Norican', cursive" },
+                { id: 'great-vibes', nameKh: 'Great Vibes (រ៉ូមែនទិក)', fontFamily: "'Great Vibes', cursive" },
+                { id: 'playfair', nameKh: 'Playfair (បុរាណ)', fontFamily: "'Playfair Display', serif" },
+                { id: 'cinzel', nameKh: 'Cinzel (រាជវាំង)', fontFamily: "'Cinzel', serif" },
+              ].map((font, idx) => {
+                const currentFont = config.guest_name_font_family || '';
+                const isSelected = currentFont === font.fontFamily;
+                return (
+                  <button
+                    key={`guest-font-${font.id}-${idx}`}
+                    type="button"
+                    onClick={() => onUpdateConfig('guest_name_font_family', font.fontFamily)}
+                    className={`p-2 rounded-xl border text-left transition-all flex flex-col gap-0.5 active:scale-95 ${
+                      isSelected
+                        ? 'border-amber-400 ring-2 ring-amber-400/40 font-bold bg-amber-400/20 text-amber-300'
+                        : theme === 'light'
+                        ? 'bg-white border-amber-200 text-neutral-800 hover:border-amber-400 hover:bg-amber-50/50'
+                        : 'bg-black/40 border-white/10 text-amber-100 hover:border-amber-400/40'
+                    }`}
+                  >
+                    <span className="text-[10px] font-khmer opacity-75">{font.nameKh}</span>
+                    <span
+                      className="text-xs truncate"
+                      style={{
+                        fontFamily: font.fontFamily || undefined,
+                        color: config.guestNameColor || '#364153',
+                      }}
+                    >
+                      លីម វីរៈ
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Guest Frame Style selection */}
+          {currentCategory !== 'birthday' && (
+            <div className="space-y-2 mt-4 pt-4 border-t border-neutral-200 dark:border-white/10">
+              <div className="flex items-center justify-between">
+                <label className={`text-[11px] font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-300/80'}`}>
+                  ការរចនាស៊ុមស្លាកឈ្មោះភ្ញៀវ (Guest Label Frame Design):
+                </label>
+                <span className="text-[10px] font-khmer opacity-75">ជ្រើសរើសម៉ូតស៊ុម</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  { id: 'vintage', nameKh: 'ស៊ុមផ្កាបុរាណ', desc: 'Vintage Floral Plaque' },
+                  { id: 'vintage-leaf', nameKh: 'ស៊ុមក្បាច់ស្លឹកបុរាណ', desc: 'Vintage Leaf & Laurel Plaque' },
+                  { id: 'vintage-ornate', nameKh: 'ស៊ុមក្បាច់ផ្កាប្រណិត', desc: 'Vintage Baroque Floral Plaque' },
+                ].map((frame, idx) => {
+                  const currentStyle = config.guest_frame_style || 'vintage';
+                  const isSelected = currentStyle === frame.id;
+                  return (
+                    <button
+                      key={`guest-frame-${frame.id}-${idx}`}
+                      type="button"
+                      onClick={() => onUpdateConfig('guest_frame_style', frame.id)}
+                      className={`p-3 rounded-2xl border-2 text-left transition-all duration-300 flex flex-col gap-1 active:scale-95 shadow-sm hover:shadow-md ${
+                        isSelected
+                          ? 'border-amber-400 ring-4 ring-amber-400/20 font-bold bg-amber-50/10 text-amber-500'
+                          : theme === 'light'
+                          ? 'bg-white border-neutral-200 text-neutral-800 hover:border-amber-300 hover:bg-amber-50'
+                          : 'bg-black/40 border-white/5 text-amber-100 hover:border-amber-500/40 hover:bg-black/60'
+                      }`}
+                    >
+                      <span className="text-[11px] font-khmer font-bold">{frame.nameKh}</span>
+                      <span className="text-[9px] opacity-75">{frame.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ៥. រូបភាពកណ្ដាលធៀប (Middle Card / Inside Invitation Background) */}
+      <div className={`space-y-3 p-4 rounded-2xl border shadow-xl ${
+        theme === 'light'
+          ? 'bg-amber-50/50 border-amber-200/90'
+          : 'bg-gradient-to-br from-black via-black/80 to-black border-amber-500/35'
+      }`}>
+        <div className={`flex items-center justify-between pb-2 border-b ${
+          theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+        }`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-lg ${theme === 'light' ? 'bg-amber-200 text-amber-950' : 'bg-amber-400/20 text-amber-300'} flex items-center justify-center`}>
+              <MapPin className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <h4 className={`text-xs sm:text-sm font-bold font-moul ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'}`}>
+                ៥. រូបភាពកណ្ដាលធៀប (Middle Card / Inside Background)
+              </h4>
+              <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer`}>
+                រូបភាពផ្ទៃខាងក្នុង/កណ្ដាលនៃលិខិតអញ្ជើញ (ជ្រើសរើសរូបទីតាំង ឬបញ្ចូលរូបផ្ទាល់ខ្លួន)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Hide / Release (បិទ/លែងលាក់) Button */}
+            <button
+              type="button"
+              onClick={() => onUpdateConfig('hide_main_background', !config.hide_main_background)}
+              className={`px-2.5 py-1.5 rounded-xl border font-khmer font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 ${
+                config.hide_main_background
+                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 ring-1 ring-emerald-400/30'
+                  : theme === 'light'
+                  ? 'bg-amber-100 hover:bg-amber-200/80 text-amber-900 border-amber-300'
+                  : 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border-amber-500/30'
+              }`}
+              title={config.hide_main_background ? 'លែងលាក់/បង្ហាញរូបភាព (Release/Show)' : 'បិទ/លាក់រូបភាព (Hide)'}
+            >
+              {config.hide_main_background ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>លែងលាក់ (Release)</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-amber-500" />
+                  <span>បិទ/លាក់ (Hide)</span>
+                </>
+              )}
+            </button>
+
+            {/* Quick Clear / Reset Button */}
+            {currentBackground && (
+              <button
+                type="button"
+                onClick={handleClearBackground}
+                className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-500 border border-red-500/30 font-khmer font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                title="លុបរូបភាពកណ្ដាលធៀប"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>លុបរូបភាព (Remove)</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {config.hide_main_background ? (
+          <div className={`p-4 rounded-xl border text-center flex flex-col items-center justify-center gap-2 ${
+            theme === 'light' ? 'bg-amber-100/50 border-amber-300 text-amber-950' : 'bg-black/50 border-amber-500/30 text-amber-200'
+          }`}>
+            <EyeOff className="w-6 h-6 text-amber-500" />
+            <div className="text-xs font-khmer font-bold">
+              រូបភាពកណ្ដាលធៀបត្រូវបានបិទ/លាក់ (Inside Background is Hidden)
+            </div>
+            <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'} font-khmer max-w-sm`}>
+              ផ្ទាំងខាងក្រោយនៃកាតកណ្ដាលនឹងមិនបង្ហាញរូបភាពឡើយ។ ចុច «លែងលាក់ (Release)» ដើម្បីបើកបង្ហាញឡើងវិញ។
+            </p>
+            <button
+              type="button"
+              onClick={() => onUpdateConfig('hide_main_background', false)}
+              className="mt-1 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-khmer text-xs font-bold shadow flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>លែងលាក់ (Release & Show)</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Place / Venue Presets Grid */}
+            <div className="space-y-1.5">
+              <label className={`block text-[11px] font-khmer font-semibold ${theme === 'light' ? 'text-amber-950' : 'text-amber-300/90'} flex items-center justify-between`}>
+                <span>ជ្រើសរើសគំរូរូបភាពក្បាច់សូត្រសម្រាប់កណ្ដាលធៀប (Silk Wallpaper Presets):</span>
+                <span className={`text-[10px] ${theme === 'light' ? 'text-amber-800' : 'text-amber-400/70'} font-normal`}>ចុច ១ ឃ្លីកដើម្បីប្តូរភ្លាមៗ</span>
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                {VENUE_PLACE_PRESETS.map((preset, idx) => {
+                  const isSelected = currentBackground === preset.imageUrl;
+                  return (
+                    <button
+                      key={`mid-venue-${preset.id}-${idx}`}
+                      type="button"
+                      onClick={() => handleApplyPlaceToBackground(preset.imageUrl)}
+                      className={`p-2 rounded-xl border text-left flex flex-col items-center gap-1.5 transition-all group ${
+                        isSelected
+                          ? 'bg-amber-500/25 border-amber-500 ring-2 ring-amber-400/40 shadow-md scale-[1.02]'
+                          : theme === 'light'
+                          ? 'bg-white border-amber-200/90 hover:border-amber-400 hover:scale-[1.01] shadow-sm'
+                          : 'bg-black/60 border-amber-500/20 hover:bg-black/90 hover:border-amber-400/60 hover:scale-[1.01]'
+                      }`}
+                    >
+                      <div className={`w-full aspect-[4/3] rounded-lg ${theme === 'light' ? 'bg-amber-100/30' : 'bg-black'} border ${
+                        theme === 'light' ? 'border-amber-200' : 'border-amber-500/20'
+                      } overflow-hidden relative transition-colors`}>
+                        <img
+                          src={preset.previewUrl}
+                          alt={preset.nameKh}
+                          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                        />
+                        {isSelected && (
+                          <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-amber-400 text-amber-950 flex items-center justify-center shadow">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="w-full text-center">
+                        <span className={`block text-[10px] sm:text-[11px] font-khmer font-bold ${theme === 'light' ? 'text-amber-950' : 'text-amber-200'} leading-tight truncate`}>
+                          {preset.nameKh}
+                        </span>
+                        <span className={`block text-[9px] ${theme === 'light' ? 'text-neutral-500' : 'text-amber-400/70'} truncate mt-0.5`}>
+                          {preset.nameEn}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Background Upload / File Picker */}
+            <DesignFilePicker
+              label="ឬបញ្ចូលរូបភាពកណ្ដាលធៀបផ្ទាល់ខ្លួន (Custom Upload for Middle Card)"
+              previewUrl={config.main_background}
+              onFileSelected={(url) => {
+                onUpdateConfig('main_background', url);
+                onUpdateConfig('details_background', url);
+              }}
+              aspectClass="aspect-[16/9]"
+              helpText="ទំហំដែលសមស្រប 1600x900 ឬខ្ពស់ជាង"
+              theme={theme}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 5. Background Music Settings (តន្ត្រីផ្ទៃខាងក្រោយ) */}
+      <div
+        className={`space-y-3 p-4 rounded-2xl border shadow-xl ${
+          theme === 'light'
+            ? 'bg-white border-amber-300'
+            : theme === 'gray'
+            ? 'bg-[#181a20] border-slate-700'
+            : 'bg-black/60 border-amber-500/30'
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Music className="w-4 h-4 text-amber-500" />
+            <span
+              className={`text-xs font-khmer font-bold ${
+                theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+              }`}
+            >
+              តន្ត្រីផ្ទៃខាងក្រោយ (Background Music)
+            </span>
+          </div>
+          <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full ${
+            theme === 'light' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+          }`}>
+            Auto-play on Open
+          </span>
+        </div>
+
+        <p className={`text-[11px] font-khmer ${theme === 'light' ? 'text-neutral-600' : 'text-amber-300/70'}`}>
+          ជ្រើសរើសបទភ្លេងប្រពៃណី ឬបទភ្លេងមនោសញ្ចេតនាសម្រាប់ចាក់នៅពេលភ្ញៀវបើកលិខិតអញ្ជើញ៖
+        </p>
+
+        {/* Music Presets List */}
+        <div className="space-y-2">
+          {MUSIC_BACKGROUND_PRESETS.map((preset, idx) => {
+            const isSelected = config.background_music === preset.url;
+            const isPlayingThis = playingPreviewUrl === preset.url;
+
+            return (
+              <div
+                key={`music-preset-${preset.id}-${idx}`}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                  isSelected
+                    ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-400/50 shadow-sm'
+                    : theme === 'light'
+                    ? 'bg-amber-50/40 border-amber-200/80 hover:border-amber-400 hover:bg-amber-50/80'
+                    : 'bg-black/40 border-white/10 hover:border-amber-500/40'
+                }`}
+              >
+                <div
+                  className="flex-1 cursor-pointer"
+                  onClick={() => onUpdateConfig('background_music', preset.url)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-khmer font-bold ${
+                      isSelected
+                        ? theme === 'light' ? 'text-amber-950' : 'text-amber-200'
+                        : theme === 'light' ? 'text-neutral-900' : 'text-neutral-200'
+                    }`}>
+                      {preset.nameKh}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[10px] font-khmer px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-bold">
+                        បានជ្រើសរើស
+                      </span>
+                    )}
+                  </div>
+                  <div className={`text-[11px] mt-0.5 ${theme === 'light' ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                    {preset.nameEn}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Listen Preview Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePreviewAudio(preset.url);
+                    }}
+                    className={`p-2 rounded-lg text-xs font-khmer flex items-center gap-1 transition-all ${
+                      isPlayingThis
+                        ? 'bg-amber-500 text-amber-950 font-bold shadow animate-pulse'
+                        : theme === 'light'
+                        ? 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-100'
+                        : 'bg-neutral-800 border border-white/10 text-neutral-300 hover:text-amber-200'
+                    }`}
+                    title={isPlayingThis ? 'ផ្អាកស្តាប់' : 'ស្តាប់សាកល្បង'}
+                  >
+                    {isPlayingThis ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline text-[11px]">ផ្អាក</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline text-[11px]">ស្តាប់</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Select Button */}
+                  <button
+                    type="button"
+                    onClick={() => onUpdateConfig('background_music', preset.url)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-khmer font-bold transition-all ${
+                      isSelected
+                        ? 'bg-amber-400 text-amber-950 shadow'
+                        : theme === 'light'
+                        ? 'bg-white border border-amber-300 text-neutral-800 hover:border-amber-500 hover:bg-amber-50'
+                        : 'bg-neutral-900 border border-white/10 text-neutral-300 hover:border-amber-400'
+                    }`}
+                  >
+                    {isSelected ? 'កំពុងប្រើ' : 'ជ្រើសរើស'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Custom Audio URL Input */}
+        <div className="pt-2">
+          <label className={`block text-[11px] font-khmer font-semibold mb-1 ${theme === 'light' ? 'text-amber-950' : 'text-amber-300/90'}`}>
+            ឬបញ្ចូលតំណភ្ជាប់បទភ្លេងផ្ទាល់ខ្លួន (Custom Audio URL):
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={config.background_music || ''}
+              onChange={(e) => onUpdateConfig('background_music', e.target.value)}
+              placeholder="https://.../music.mp3"
+              className={`flex-1 px-3 py-2 rounded-xl text-xs font-mono focus:outline-none ${
+                theme === 'light'
+                  ? 'bg-white border border-amber-300 text-neutral-900 focus:border-amber-500 shadow-sm'
+                  : 'bg-black/50 border border-amber-500/30 text-amber-100 focus:border-amber-400'
+              }`}
+            />
+            {config.background_music && (
+              <button
+                type="button"
+                onClick={() => togglePreviewAudio(config.background_music)}
+                className={`px-3 py-2 rounded-xl text-xs font-khmer font-bold flex items-center gap-1.5 transition-all ${
+                  playingPreviewUrl === config.background_music
+                    ? 'bg-amber-500 text-amber-950'
+                    : theme === 'light'
+                    ? 'bg-amber-200 text-amber-950 hover:bg-amber-300'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
+                }`}
+              >
+                {playingPreviewUrl === config.background_music ? (
+                  <>
+                    <Pause className="w-3.5 h-3.5" />
+                    <span>ផ្អាក</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5" />
+                    <span>ស្តាប់</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+

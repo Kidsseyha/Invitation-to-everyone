@@ -1,0 +1,138 @@
+{
+  "entities": {
+    "Guest": {
+      "title": "Guest",
+      "description": "Wedding guest preset and attendee in the honored guest list",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the guest", "maxLength": 128 },
+        "name": { "type": "string", "description": "Full name / title of the honored guest in Khmer or English", "maxLength": 256 },
+        "category": { "type": "string", "description": "Guest category (family, vip, friends, colleagues, general)", "maxLength": 50 },
+        "categoryLabelKh": { "type": "string", "description": "Khmer category label", "maxLength": 100 },
+        "categoryLabelEn": { "type": "string", "description": "English category label", "maxLength": 100 },
+        "note": { "type": "string", "description": "Optional note or table assignment", "maxLength": 500 },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update", "maxLength": 64 }
+      },
+      "required": ["name", "category"]
+    },
+    "Wish": {
+      "title": "Wish",
+      "description": "Blessing and wish message submitted in the digital guestbook",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique wish identifier", "maxLength": 128 },
+        "name": { "type": "string", "description": "Guest sender name", "maxLength": 200 },
+        "relationship": { "type": "string", "description": "Relationship to bride/groom", "maxLength": 100 },
+        "message": { "type": "string", "description": "Wish blessing message content", "maxLength": 2000 },
+        "likes": { "type": "number", "description": "Number of heart likes" },
+        "createdAt": { "type": "string", "description": "ISO timestamp string", "maxLength": 64 }
+      },
+      "required": ["name", "message"]
+    },
+    "RSVP": {
+      "title": "RSVP",
+      "description": "Guest RSVP confirmation response",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Guest name", "maxLength": 200 },
+        "attending": { "type": "string", "description": "Whether attending yes or no", "maxLength": 10 },
+        "guestCount": { "type": "number", "description": "Number of attendees" },
+        "phone": { "type": "string", "description": "Contact phone number", "maxLength": 50 },
+        "note": { "type": "string", "description": "Dietary or congratulatory note", "maxLength": 500 },
+        "timestamp": { "type": "string", "description": "Timestamp string", "maxLength": 64 }
+      },
+      "required": ["name", "attending"]
+    },
+    "WeddingEvent": {
+      "title": "WeddingEvent",
+      "description": "Configured wedding event data including couple info, schedule, venue, KHQR and photo gallery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique event ID", "maxLength": 128 },
+        "name": { "type": "string", "description": "Event name / title", "maxLength": 300 },
+        "title": { "type": "string", "description": "Alternative event title", "maxLength": 300 },
+        "groom": { "type": "string", "description": "Groom name", "maxLength": 200 },
+        "bride": { "type": "string", "description": "Bride name", "maxLength": 200 },
+        "groom_name": { "type": "string", "description": "Groom name alias", "maxLength": 200 },
+        "bride_name": { "type": "string", "description": "Bride name alias", "maxLength": 200 },
+        "ownerId": { "type": "string", "description": "Owner User ID for per-user event isolation", "maxLength": 128 },
+        "ownerEmail": { "type": "string", "description": "Owner email address", "maxLength": 256 },
+        "config": { "type": "object", "description": "Full wedding configuration object" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update", "maxLength": 64 }
+      },
+      "required": ["name"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Authenticated user profile for admin and editor management",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth user ID", "maxLength": 128 },
+        "email": { "type": "string", "description": "User email address", "maxLength": 256 },
+        "displayName": { "type": "string", "description": "User display name", "maxLength": 256 },
+        "photoURL": { "type": "string", "description": "User avatar photo URL", "maxLength": 1000 },
+        "activeEventId": { "type": "string", "description": "User personal active event ID", "maxLength": 128 },
+        "role": { "type": "string", "description": "User access role (admin or editor)", "maxLength": 50 },
+        "lastLoginAt": { "type": "string", "description": "ISO timestamp of last login", "maxLength": 64 }
+      },
+      "required": ["uid", "email"]
+    },
+    "SystemUser": {
+      "title": "SystemUser",
+      "description": "Registered system user and administrator account record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique system user identifier", "maxLength": 128 },
+        "name": { "type": "string", "description": "Full name of the user", "maxLength": 256 },
+        "email": { "type": "string", "description": "Email address of the user", "maxLength": 256 },
+        "passcode": { "type": "string", "description": "Passcode credential string", "maxLength": 128 },
+        "role": { "type": "string", "description": "Role (admin or user)", "maxLength": 50 },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation", "maxLength": 64 }
+      },
+      "required": ["name", "email"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Owner dashboard alert and activity log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Notification ID", "maxLength": 128 },
+        "title": { "type": "string", "description": "Notification title", "maxLength": 200 },
+        "message": { "type": "string", "description": "Notification message body", "maxLength": 2000 },
+        "type": { "type": "string", "description": "Notification category or type", "maxLength": 50 },
+        "createdAt": { "type": "string", "description": "ISO timestamp of notification", "maxLength": 64 }
+      },
+      "required": ["title", "message"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Authenticated user profiles with authorization roles"
+    },
+    "/system_users/{userId}": {
+      "schema": { "$ref": "#/entities/SystemUser" },
+      "description": "System user and administrator account records"
+    },
+    "/guests/{guestId}": {
+      "schema": { "$ref": "#/entities/Guest" },
+      "description": "Wedding guest list presets and attendees"
+    },
+    "/wishes/{wishId}": {
+      "schema": { "$ref": "#/entities/Wish" },
+      "description": "Public wedding blessings and guestbook messages"
+    },
+    "/rsvps/{rsvpId}": {
+      "schema": { "$ref": "#/entities/RSVP" },
+      "description": "Guest RSVP responses"
+    },
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/WeddingEvent" },
+      "description": "Wedding event settings, schedules, gallery and invitation details"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Owner dashboard alerts and activity logs"
+    }
+  }
+}

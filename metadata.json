@@ -1,0 +1,6 @@
+{
+  "name": "សូមគោរពអញ្ជើញ",
+  "description": "សូមគោរពអញ្ជើញ Your Name - លិខិតអញ្ជើញអាពាហ៍ពិពាហ៍/Plan Essential Digital Invitation",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
