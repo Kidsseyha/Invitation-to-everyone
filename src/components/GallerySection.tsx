@@ -147,7 +147,7 @@ export default function GallerySection({
                 >
                   <GalleryMedia
                     src={photo}
-                    alt={`Pre-wedding photo ${idx + 1}`}
+                    alt={eventType === 'housewarming' ? `Housewarming photo ${idx + 1}` : `Pre-wedding photo ${idx + 1}`}
                     className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-700 ease-out"
                   />
 
@@ -196,7 +196,7 @@ export default function GallerySection({
               >
                 <GalleryMedia
                   src={photo}
-                  alt={`Pre-wedding photo ${idx + 1}`}
+                  alt={eventType === 'housewarming' ? `Housewarming photo ${idx + 1}` : `Pre-wedding photo ${idx + 1}`}
                   className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-700 ease-out"
                 />
 
@@ -247,7 +247,7 @@ export default function GallerySection({
                   <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
                     <GalleryMedia
                       src={photo}
-                      alt={`Pre-wedding photo ${idx + 1}`}
+                      alt={eventType === 'housewarming' ? `Housewarming photo ${idx + 1}` : `Pre-wedding photo ${idx + 1}`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />

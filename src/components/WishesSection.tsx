@@ -20,6 +20,7 @@ interface WishesSectionProps {
   textColor?: string;
   theme?: ThemeMode;
   isAdmin?: boolean;
+  eventType?: string;
 }
 
 export default function WishesSection({
@@ -29,7 +30,9 @@ export default function WishesSection({
   textColor = '#f5b80f',
   theme = 'dark',
   isAdmin = false,
+  eventType,
 }: WishesSectionProps) {
+  const isHousewarming = eventType === 'housewarming';
   const [wishes, setWishes] = useState<WishMessage[]>(() => {
     try {
       const saved = localStorage.getItem('wedding_wishes_list');
@@ -332,9 +335,21 @@ export default function WishesSection({
         className="w-full max-w-2xl mx-auto"
       >
         <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
-          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${theme === 'light' ? 'bg-amber-100/60 border-amber-300/50' : 'bg-amber-950/40 border-amber-500/30'} border text-xs font-khmer`}>
+          <div
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-khmer ${
+              isHousewarming
+                ? theme === 'light'
+                  ? 'bg-emerald-900/10 border-emerald-700/30'
+                  : 'bg-emerald-950/60 border-emerald-400/35'
+                : theme === 'light'
+                ? 'bg-amber-100/60 border-amber-300/50'
+                : 'bg-amber-950/40 border-amber-500/30'
+            }`}
+          >
             <MessageSquareHeart className="w-3.5 h-3.5" style={{ color: primaryColor }} />
-            <span style={{ color: primaryColor }}>{language === 'kh' ? 'ផ្ញើសារជូនពរឯកជន (Private)' : 'Private Blessings & Wishes'}</span>
+            <span style={{ color: primaryColor }}>
+              {language === 'kh' ? 'ផ្ញើសារជូនពរឯកជន (Private)' : 'Private Blessings & Wishes'}
+            </span>
           </div>
 
           {isLocalAdmin && (
@@ -353,9 +368,13 @@ export default function WishesSection({
         </h2>
         <p
           style={{ color: textColor }}
-          className={`text-xs font-khmer mb-6 leading-relaxed ${theme === 'light' ? 'opacity-75' : 'opacity-85'}`}
+          className={`text-xs font-khmer mb-6 leading-relaxed ${theme === 'light' ? 'opacity-80' : 'opacity-85'}`}
         >
-          {language === 'kh'
+          {isHousewarming
+            ? language === 'kh'
+              ? 'សូមផ្ញើសារជូនពរសិរីសួស្តីដល់ម្ចាស់គេហដ្ឋានថ្មីដោយសម្ងាត់'
+              : 'Send your heartfelt housewarming blessings privately to the hosts.'
+            : language === 'kh'
             ? 'សូមផ្ញើសារជូនពរដ៏មានអត្ថន័យដោយសម្ងាត់ជូនដល់គូស្វាមីភរិយាថ្មី'
             : 'Send your heartfelt blessing privately to the newlyweds.'}
         </p>
@@ -402,7 +421,18 @@ export default function WishesSection({
         </AnimatePresence>
 
         {/* Input Form */}
-        <form onSubmit={handleSubmit} className={`p-4 rounded-2xl ${theme === 'light' ? 'bg-amber-50 border-amber-300 shadow-[0_4px_15px_rgba(0,0,0,0.05)]' : 'bg-black border-amber-500/30 shadow-lg'} border text-left mb-8 space-y-3`}>
+        <form
+          onSubmit={handleSubmit}
+          className={`p-4 rounded-2xl border text-left mb-8 space-y-3 ${
+            isHousewarming
+              ? theme === 'light'
+                ? 'bg-[#f4f7f1] border-emerald-700/25 shadow-sm'
+                : 'bg-[#072118]/90 border-[#d4af37]/35 shadow-lg'
+              : theme === 'light'
+              ? 'bg-amber-50 border-amber-300 shadow-[0_4px_15px_rgba(0,0,0,0.05)]'
+              : 'bg-black border-amber-500/30 shadow-lg'
+          }`}
+        >
           <div>
             <input
               type="text"
@@ -411,7 +441,15 @@ export default function WishesSection({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder={language === 'kh' ? 'ឈ្មោះភ្ញៀវកិត្តិយស (Honored Guest Name)' : 'Honored Guest Name'}
-              className={`w-full px-3 py-2.5 rounded-xl ${theme === 'light' ? 'bg-white border-amber-200 text-amber-950 placeholder:text-neutral-400 focus:border-amber-400 focus:ring-amber-400' : 'bg-black/60 border-amber-500/30 text-amber-100 placeholder:text-neutral-500 focus:border-amber-400 focus:ring-amber-400'} border text-xs font-khmer focus:outline-none focus:ring-1`}
+              className={`w-full px-3 py-2.5 rounded-xl border text-xs font-khmer focus:outline-none focus:ring-1 ${
+                isHousewarming
+                  ? theme === 'light'
+                    ? 'bg-white border-emerald-700/25 text-[#103b2a] placeholder:text-neutral-500 focus:border-emerald-700 focus:ring-emerald-700'
+                    : 'bg-[#041610] border-emerald-500/30 text-[#fef8e8] placeholder:text-emerald-200/50 focus:border-[#f4cb5c] focus:ring-[#f4cb5c]'
+                  : theme === 'light'
+                  ? 'bg-white border-amber-200 text-amber-950 placeholder:text-neutral-400 focus:border-amber-400 focus:ring-amber-400'
+                  : 'bg-black/60 border-amber-500/30 text-amber-100 placeholder:text-neutral-500 focus:border-amber-400 focus:ring-amber-400'
+              }`}
             />
             {savedGuestNames.length > 0 && (
               <datalist id="guest-names-list">
@@ -423,13 +461,31 @@ export default function WishesSection({
           </div>
 
           <div>
-            <label className={`block text-xs font-khmer ${theme === 'light' ? 'text-amber-800' : 'text-amber-300'} mb-1`}>
+            <label
+              className={`block text-xs font-khmer mb-1 ${
+                isHousewarming
+                  ? theme === 'light'
+                    ? 'text-[#0e5c40]'
+                    : 'text-[#f4cb5c]'
+                  : theme === 'light'
+                  ? 'text-amber-800'
+                  : 'text-amber-300'
+              }`}
+            >
               {language === 'kh' ? 'ត្រូវជា / Relationship:' : 'Relationship:'}
             </label>
             <select
               value={relationship}
               onChange={e => setRelationship(e.target.value)}
-              className={`w-full px-3 py-2 rounded-xl ${theme === 'light' ? 'bg-white border-amber-200 text-amber-950 focus:border-amber-400 focus:ring-amber-400' : 'bg-black/60 border-amber-500/30 text-amber-200 focus:border-amber-400 focus:ring-amber-400'} border text-xs font-khmer focus:outline-none focus:ring-1`}
+              className={`w-full px-3 py-2 rounded-xl border text-xs font-khmer focus:outline-none focus:ring-1 ${
+                isHousewarming
+                  ? theme === 'light'
+                    ? 'bg-white border-emerald-700/25 text-[#103b2a] focus:border-emerald-700 focus:ring-emerald-700'
+                    : 'bg-[#041610] border-emerald-500/30 text-[#fef8e8] focus:border-[#f4cb5c] focus:ring-[#f4cb5c]'
+                  : theme === 'light'
+                  ? 'bg-white border-amber-200 text-amber-950 focus:border-amber-400 focus:ring-amber-400'
+                  : 'bg-black/60 border-amber-500/30 text-amber-200 focus:border-amber-400 focus:ring-amber-400'
+              }`}
             >
               <option value="មិត្តភក្តិ (Friend)">{language === 'kh' ? 'មិត្តភក្តិ (Friend)' : 'Friend'}</option>
               <option value="ក្រុមគ្រួសារ & សាច់ញាតិ (Family)">{language === 'kh' ? 'ក្រុមគ្រួសារ & សាច់ញាតិ (Family)' : 'Family'}</option>
@@ -439,7 +495,17 @@ export default function WishesSection({
           </div>
 
           <div>
-            <label className={`block text-xs font-khmer ${theme === 'light' ? 'text-amber-800' : 'text-amber-300'} mb-1`}>
+            <label
+              className={`block text-xs font-khmer mb-1 ${
+                isHousewarming
+                  ? theme === 'light'
+                    ? 'text-[#0e5c40]'
+                    : 'text-[#f4cb5c]'
+                  : theme === 'light'
+                  ? 'text-amber-800'
+                  : 'text-amber-300'
+              }`}
+            >
               {language === 'kh' ? 'សារជូនពរ / Blessing Message:' : 'Your Wishes:'}
             </label>
             <textarea
@@ -447,8 +513,24 @@ export default function WishesSection({
               rows={3}
               value={message}
               onChange={e => setMessage(e.target.value)}
-              placeholder={language === 'kh' ? 'សូមជូនពរឱ្យអ្នកទាំងពីរមានសុភមង្គល...' : 'May your love grow stronger each and every day...'}
-              className={`w-full px-3 py-2 rounded-xl ${theme === 'light' ? 'bg-white border-amber-200 text-amber-950 focus:border-amber-400 focus:ring-amber-400' : 'bg-black/60 border-amber-500/30 text-amber-100 focus:border-amber-400 focus:ring-amber-400'} border text-xs font-khmer focus:outline-none focus:ring-1 resize-none`}
+              placeholder={
+                isHousewarming
+                  ? language === 'kh'
+                    ? 'សូមជូនពរឱ្យគេហដ្ឋានថ្មីពោរពេញដោយសុភមង្គល និងសិរីមង្គល...'
+                    : 'May your new home be filled with peace, nature, joy, and prosperity...'
+                  : language === 'kh'
+                  ? 'សូមជូនពរឱ្យអ្នកទាំងពីរមានសុភមង្គល...'
+                  : 'May your love grow stronger each and every day...'
+              }
+              className={`w-full px-3 py-2 rounded-xl border text-xs font-khmer focus:outline-none focus:ring-1 resize-none ${
+                isHousewarming
+                  ? theme === 'light'
+                    ? 'bg-white border-emerald-700/25 text-[#103b2a] focus:border-emerald-700 focus:ring-emerald-700'
+                    : 'bg-[#041610] border-emerald-500/30 text-[#fef8e8] focus:border-[#f4cb5c] focus:ring-[#f4cb5c]'
+                  : theme === 'light'
+                  ? 'bg-white border-amber-200 text-amber-950 focus:border-amber-400 focus:ring-amber-400'
+                  : 'bg-black/60 border-amber-500/30 text-amber-100 focus:border-amber-400 focus:ring-amber-400'
+              }`}
             />
           </div>
 
@@ -458,18 +540,22 @@ export default function WishesSection({
             disabled={isSubmitting}
             whileHover={{ scale: 1.015 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 via-rose-300 to-amber-400 hover:from-amber-300 hover:via-rose-200 hover:to-amber-300 text-amber-950 font-khmer font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className={`w-full py-2.5 px-4 rounded-xl font-khmer font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+              isHousewarming
+                ? 'bg-gradient-to-r from-[#0e4531] via-[#156045] to-[#0e4531] hover:brightness-110 text-[#fef8e8] border border-[#f4cb5c]/70'
+                : 'bg-gradient-to-r from-amber-400 via-rose-300 to-amber-400 hover:from-amber-300 hover:via-rose-200 hover:to-amber-300 text-amber-950'
+            }`}
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-950" />
+                <Loader2 className={`w-3.5 h-3.5 animate-spin ${isHousewarming ? 'text-[#f4cb5c]' : 'text-amber-950'}`} />
                 <span>{language === 'kh' ? 'កំពុងផ្ញើ...' : 'Sending...'}</span>
               </>
             ) : (
               <>
-                <Heart className="w-3.5 h-3.5 fill-rose-600 text-rose-600 animate-pulse" />
+                <Heart className={`w-3.5 h-3.5 ${isHousewarming ? 'fill-[#f4cb5c] text-[#f4cb5c]' : 'fill-rose-600 text-rose-600 animate-pulse'}`} />
                 <span>{language === 'kh' ? 'ផ្ញើសារជូនពរ' : 'Send Wishes'}</span>
-                <Send className="w-3.5 h-3.5 text-amber-950" />
+                <Send className={`w-3.5 h-3.5 ${isHousewarming ? 'text-[#f4cb5c]' : 'text-amber-950'}`} />
               </>
             )}
           </motion.button>
@@ -564,10 +650,24 @@ export default function WishesSection({
 
         {/* Viewer Empty State - Placeholder if list is hidden */}
         {!isLocalAdmin && (
-          <div className={`p-8 rounded-2xl border border-dashed flex flex-col items-center justify-center gap-3 ${theme === 'light' ? 'bg-amber-50/30 border-amber-200/50 text-amber-900/40' : 'bg-black/20 border-amber-500/20 text-amber-500/30'}`}>
-            <Lock className="w-6 h-6 opacity-40" />
+          <div
+            className={`p-8 rounded-2xl border border-dashed flex flex-col items-center justify-center gap-3 ${
+              isHousewarming
+                ? theme === 'light'
+                  ? 'bg-[#fcfaf3]/80 border-[#146c43]/25 text-[#0e5c40]/75'
+                  : 'bg-[#072a1e]/70 border-[#f4cb5c]/25 text-[#b7dec9]/75'
+                : theme === 'light'
+                ? 'bg-amber-50/30 border-amber-200/50 text-amber-900/40'
+                : 'bg-black/20 border-amber-500/20 text-amber-500/30'
+            }`}
+          >
+            <Lock className="w-6 h-6 opacity-60" />
             <p className="text-[11px] font-khmer italic">
-              {language === 'kh' ? 'សារជូនពរទាំងអស់ត្រូវបានរក្សាទុកជាឯកជនសម្រាប់តែម្ចាស់ដើមការប៉ុណ្ណោះ' : 'All messages are kept private for the host only.'}
+              {language === 'kh'
+                ? isHousewarming
+                  ? 'សារជូនពរទាំងអស់ត្រូវបានរក្សាទុកជាឯកជនសម្រាប់តែម្ចាស់គេហដ្ឋានថ្មីប៉ុណ្ណោះ'
+                  : 'សារជូនពរទាំងអស់ត្រូវបានរក្សាទុកជាឯកជនសម្រាប់តែម្ចាស់ដើមការប៉ុណ្ណោះ'
+                : 'All messages are kept private for the hosts only.'}
             </p>
           </div>
         )}

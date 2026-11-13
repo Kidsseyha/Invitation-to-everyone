@@ -78,6 +78,8 @@ import RingIcon from './components/RingIcon';
 import BeautifulButterflies from './components/BeautifulButterflies';
 import FloatingBalloonsAndGifts from './components/FloatingBalloonsAndGifts';
 import FloatingEngagementRingsAndSparkles from './components/FloatingEngagementRingsAndSparkles';
+import FloatingKhmerNaturePetals from './components/FloatingKhmerNaturePetals';
+import { khmerNatureBg } from './components/KhmerNatureHousewarmingCover';
 import { KhmerCornerKbach, KhmerDividerKbach, ShapedTitleText } from './components/KhmerRoyalOrnament';
 import { useWebSocket } from './lib/useWebSocket';
 
@@ -1699,9 +1701,47 @@ export default function App() {
           config.photo_gallary.photo4,
         ].filter(Boolean);
 
-  const rootBgColor = theme === 'light' ? '#f4f1ea' : theme === 'gray' ? '#1b1e25' : '#141210';
-  const rootTextColor = theme === 'light' ? 'text-neutral-900' : theme === 'gray' ? 'text-slate-100' : 'text-[#e5e0d8]';
-  const mainCardBgClass = theme === 'light' ? 'bg-[#faf8f5] text-neutral-900 border-amber-500/30' : theme === 'gray' ? 'bg-[#1b1e25] text-slate-100 border-slate-700/50' : 'bg-black text-[#e5e0d8] border-amber-500/20';
+  const isHousewarmingOrEngagement = isHousewarming || isEngagement;
+
+  const rootBgColor = isHousewarmingOrEngagement
+    ? theme === 'light'
+      ? '#eef4ea'
+      : '#041710'
+    : theme === 'light'
+    ? '#f4f1ea'
+    : theme === 'gray'
+    ? '#1b1e25'
+    : '#141210';
+  const rootTextColor = isHousewarmingOrEngagement
+    ? theme === 'light'
+      ? 'text-[#103b2a]'
+      : 'text-[#fef8e8]'
+    : theme === 'light'
+    ? 'text-neutral-900'
+    : theme === 'gray'
+    ? 'text-slate-100'
+    : 'text-[#e5e0d8]';
+  const mainCardBgClass = isHousewarmingOrEngagement
+    ? theme === 'light'
+      ? 'bg-[#faf7ee] text-[#103b2a] border-[#8a5a10]/30 shadow-[0_24px_70px_rgba(16,59,42,0.14)]'
+      : 'bg-[#061f17] text-[#fef8e8] border-[#d4af37]/35 shadow-[0_28px_80px_rgba(2,14,10,0.85)]'
+    : theme === 'light'
+    ? 'bg-[#faf8f5] text-neutral-900 border-amber-500/30'
+    : theme === 'gray'
+    ? 'bg-[#1b1e25] text-slate-100 border-slate-700/50'
+    : 'bg-black text-[#e5e0d8] border-amber-500/20';
+
+  const sectionPrimaryColor = isHousewarmingOrEngagement
+    ? theme === 'light'
+      ? '#0e5c40'
+      : '#f4cb5c'
+    : config.primaryColor || '#f5b80f';
+  const sectionTextColor = isHousewarmingOrEngagement
+    ? theme === 'light'
+      ? '#1d4332'
+      : '#d8ece1'
+    : config.textColor || '#f5b80f';
+  const hwGoldColor = theme === 'light' ? '#8a5a10' : '#f4cb5c';
 
   const currentTemplateTypeInfo = (() => {
     const id = (event.id || '').toLowerCase();
@@ -1781,9 +1821,30 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Background backdrop blur / shade if main_background is set */}
-      {!config.hide_main_background && (config.main_background || config.cover_background || config.event_location) && (
-        <div className={`fixed inset-0 ${theme === 'light' ? 'bg-white/40' : theme === 'gray' ? 'bg-black/50' : 'bg-black/35'} backdrop-blur-[1px] pointer-events-none z-0 transition-colors duration-500 ease-in-out`} />
+      {/* Outer botanical / Angkor Wat atmosphere for Housewarming & Engagement / generic backdrop blur otherwise */}
+      {isHousewarming || isEngagement ? (
+        <>
+          <div
+            aria-hidden="true"
+            className={`fixed inset-0 bg-cover bg-center pointer-events-none z-0 transition-opacity duration-500 ${
+              theme === 'light' ? 'opacity-25' : 'opacity-20'
+            }`}
+            style={{ backgroundImage: `url(${isEngagement ? '/assets/aistudio/image_6e49a03a.png' : khmerNatureBg})` }}
+          />
+          <div
+            aria-hidden="true"
+            className={`fixed inset-0 pointer-events-none z-0 transition-colors duration-500 ${
+              theme === 'light'
+                ? 'bg-gradient-to-b from-[#eef4ea]/85 via-[#f6f3e8]/80 to-[#e5eee0]/90'
+                : 'bg-gradient-to-b from-[#03130d]/85 via-[#051d14]/80 to-[#020f0a]/90'
+            }`}
+          />
+        </>
+      ) : (
+        !config.hide_main_background &&
+        (config.main_background || config.cover_background || config.event_location) && (
+          <div className={`fixed inset-0 ${theme === 'light' ? 'bg-white/40' : theme === 'gray' ? 'bg-black/50' : 'bg-black/35'} backdrop-blur-[1px] pointer-events-none z-0 transition-colors duration-500 ease-in-out`} />
+        )
       )}
 
       {/* Royal Opening Envelope Modal */}
@@ -1845,7 +1906,7 @@ export default function App() {
       />
 
       {/* Floating Top Left Controls: Language & Theme */}
-      <div className="fixed top-4 left-4 z-50 flex flex-wrap items-center gap-2">
+      <div className="fixed top-3 left-2.5 sm:top-4 sm:left-4 z-50 flex flex-wrap items-center gap-1.5 sm:gap-2">
         <LanguageToggle currentLanguage={language} onToggle={toggleLanguage} theme={theme} />
         <ThemeToggle currentTheme={theme} onChangeTheme={handleThemeChange} language={language} />
       </div>
@@ -1858,7 +1919,9 @@ export default function App() {
         theme={theme}
       />
 
-      <div className="fixed top-16 right-2 sm:right-4 z-40 flex flex-col items-end gap-1.5 sm:gap-2 max-w-[calc(100vw-1rem)]">
+      <div
+        className="fixed right-2 sm:right-4 z-40 flex max-w-[calc(100vw-1rem)] top-[52px] sm:top-16 flex-row flex-wrap justify-end items-center gap-1.5 sm:flex-col sm:items-end sm:gap-2"
+      >
         {/* Admin and Auth Controls */}
         {isAdmin ? (
           <>
@@ -2138,8 +2201,10 @@ export default function App() {
         )}
       </div>
 
-      {/* Floating Animations: Balloons & Gifts for Birthday, Rings & Sparkles & Confetti for Engagement, Butterflies for Wedding */}
-      {currentTemplateTypeInfo.type === 'birthday' ? (
+      {/* Floating Animations: Botanical Petals for Housewarming, Balloons for Birthday, Rings for Engagement, Butterflies for Wedding */}
+      {currentTemplateTypeInfo.type === 'housewarming' ? (
+        <FloatingKhmerNaturePetals theme={theme} />
+      ) : currentTemplateTypeInfo.type === 'birthday' ? (
         <FloatingBalloonsAndGifts />
       ) : currentTemplateTypeInfo.type === 'engagement' ? (
         <FloatingEngagementRingsAndSparkles />
@@ -2159,7 +2224,7 @@ export default function App() {
         className={`w-full max-w-xl sm:max-w-2xl md:max-w-3xl lg:max-w-4xl ${mainCardBgClass} shadow-2xl relative border-x overflow-hidden pb-24 transition-colors duration-500 ease-in-out`}
       >
         {/* Full-height subtle darkening & texture overlay for crisp legibility */}
-        {!config.hide_main_background && (config.details_background || config.main_background) && (
+        {!isHousewarming && !isEngagement && !config.hide_main_background && (config.details_background || config.main_background) && (
           <div className={`absolute inset-0 bg-gradient-to-b ${theme === 'light' ? 'from-white/70 via-white/50 to-white/70' : theme === 'gray' ? 'from-[#1b1e25]/60 via-[#1b1e25]/50 to-[#1b1e25]/70' : 'from-black/50 via-black/40 to-black/60'} pointer-events-none z-0 transition-all duration-500 ease-in-out`} />
         )}
 
@@ -2174,18 +2239,36 @@ export default function App() {
           </div>
 
           {/* Middle Card Header Background Wallpaper */}
-          {!config.hide_main_background && (
-            <div
-              className="absolute inset-0 bg-cover bg-top opacity-65"
-              style={{ backgroundImage: `url(${config.details_background || config.main_background || config.cover_background})` }}
-            />
+          {isHousewarming || isEngagement ? (
+            <>
+              <div
+                className={`absolute inset-0 bg-cover bg-center ${theme === 'light' ? 'opacity-45' : 'opacity-50'}`}
+                style={{ backgroundImage: `url(${isEngagement ? '/assets/aistudio/image_6e49a03a.png' : khmerNatureBg})` }}
+              />
+              <div
+                className="absolute inset-0 transition-colors duration-500"
+                style={{
+                  background:
+                    theme === 'light'
+                      ? 'linear-gradient(to bottom, rgba(250, 247, 238, 0.55) 0%, rgba(250, 247, 238, 0.85) 58%, #faf7ee 100%)'
+                      : 'linear-gradient(to bottom, rgba(4, 22, 16, 0.55) 0%, rgba(6, 31, 23, 0.86) 58%, #061f17 100%)',
+                }}
+              />
+            </>
+          ) : (
+            <>
+              {!config.hide_main_background && (
+                <div
+                  className="absolute inset-0 bg-cover bg-top opacity-65"
+                  style={{ backgroundImage: `url(${config.details_background || config.main_background || config.cover_background})` }}
+                />
+              )}
+              <div className={`absolute inset-0 bg-gradient-to-b ${theme === 'light' ? 'from-white/20 via-transparent to-white/80' : theme === 'gray' ? 'from-[#1b1e25]/20 via-transparent to-[#1b1e25]/80' : 'from-black/10 via-transparent to-black/60'} transition-all duration-500 ease-in-out`} />
+            </>
           )}
 
-          {/* Golden Pattern Overlay */}
-          <div className={`absolute inset-0 bg-gradient-to-b ${theme === 'light' ? 'from-white/20 via-transparent to-white/80' : theme === 'gray' ? 'from-[#1b1e25]/20 via-transparent to-[#1b1e25]/80' : 'from-black/10 via-transparent to-black/60'} transition-all duration-500 ease-in-out`} />
-
-          {/* Couple Main Pre-Wedding Photo with Artistic Frame & Shape */}
-          <div className="relative pt-6 pb-4 px-4 sm:px-8 flex flex-col items-center">
+          {/* Main Hero Portrait/Villa Emblem with Artistic Frame & Shape */}
+          <div className="relative pt-24 sm:pt-10 pb-4 px-4 sm:px-8 flex flex-col items-center">
             {(() => {
               const portraitShape = config.portrait_shape || 'circle';
               return (
@@ -2277,27 +2360,37 @@ export default function App() {
             })()}
 
             {/* Traditional Ornamental Khmer Divider */}
-            <KhmerDividerKbach className="w-52 sm:w-64 h-5 my-2" color={config.primaryColor || '#f5b80f'} />
+            <KhmerDividerKbach className="w-52 sm:w-64 h-5 my-2" color={isHousewarming ? hwGoldColor : (config.primaryColor || '#f5b80f')} />
 
-            {/* Title: សិរីមង្គលអាពាហ៍ពិពាហ៍ */}
+            {/* Title */}
             <motion.div
               initial={{ opacity: 0, y: -35, scale: 0.85 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ type: 'spring', damping: 18, stiffness: 100, delay: 0.25 }}
               className="mt-2 mb-2"
             >
-              <span className="text-xs sm:text-sm uppercase tracking-[0.3em] text-amber-300 font-semibold block mb-2">
+              <span
+                className={`text-xs sm:text-sm font-semibold block mb-2 ${
+                  language === 'kh' ? 'tracking-normal' : 'uppercase tracking-[0.26em]'
+                } ${
+                  isHousewarming
+                    ? theme === 'light'
+                      ? 'text-[#0e5c40]'
+                      : 'text-emerald-300'
+                    : 'text-amber-300'
+                }`}
+              >
                 {language === 'kh' ? badgeKh : badgeEn}
               </span>
               <h1
-                style={{ color: config.primaryColor || '#f5b80f' }}
-                className="text-2xl sm:text-3xl md:text-4xl font-moul py-1.5 leading-normal drop-shadow-[0_2px_6px_rgba(0,0,0,0.3)]"
+                style={{ color: isHousewarming ? hwGoldColor : (config.primaryColor || '#f5b80f') }}
+                className="text-2xl sm:text-3xl md:text-4xl font-moul py-1.5 leading-normal drop-shadow-[0_2px_6px_rgba(0,0,0,0.2)]"
               >
                 {textContent.main_title}
               </h1>
             </motion.div>
 
-            {/* Couple Names */}
+            {/* Couple / Host Names */}
             <motion.div
               initial={{ opacity: 0, y: 35, scale: 0.88 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2310,17 +2403,23 @@ export default function App() {
                 <>
                   <div
                     style={{
-                      color: config.primaryColor || '#f5b80f',
-                      fontFamily: config.cover_en_font_family || undefined,
+                      color: isHousewarming ? sectionPrimaryColor : (config.primaryColor || '#f5b80f'),
+                      fontFamily: isHousewarming ? (config.cover_en_font_family || "'Playfair Display', serif") : (config.cover_en_font_family || undefined),
                     }}
-                    className={`flex flex-wrap justify-center items-center gap-x-2 gap-y-1 sm:gap-4 text-3xl sm:text-4xl md:text-5xl lg:text-6xl ${!config.cover_en_font_family ? 'font-norican' : ''} group-hover:brightness-110 transition-all tracking-wide drop-shadow-[0_2px_8px_rgba(245,158,11,0.35)]`}
+                    className={`flex flex-wrap justify-center items-center gap-x-2 gap-y-1 sm:gap-4 text-2xl sm:text-4xl md:text-5xl ${!config.cover_en_font_family && !isHousewarming ? 'font-norican' : 'font-bold'} group-hover:brightness-110 transition-all tracking-wide drop-shadow-[0_2px_8px_rgba(0,0,0,0.2)]`}
                   >
                     <span className="capitalize inline-block">
                       {event.groomEn || 'Ro Malay'}
                     </span>
                     {!event.singlePerson && (
                       <>
-                        <RingIcon className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 inline-block mx-1.5 shrink-0 drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)] animate-pulse" />
+                        {isHousewarming ? (
+                          <span style={{ color: hwGoldColor }} className="inline-flex items-center mx-1.5 shrink-0 font-serif italic text-xl sm:text-3xl">
+                            &amp;
+                          </span>
+                        ) : (
+                          <RingIcon className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 inline-block mx-1.5 shrink-0 drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)] animate-pulse" />
+                        )}
                         <span className="capitalize inline-block">
                           {event.brideEn || 'Uom Volak'}
                         </span>
@@ -2328,13 +2427,13 @@ export default function App() {
                     )}
                   </div>
                   <p
-                    style={{ color: config.textColor || '#f5b80f' }}
-                    className="text-base sm:text-lg md:text-xl font-moul mt-2 tracking-wider flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 drop-shadow-sm"
+                    style={{ color: isHousewarming ? sectionTextColor : (config.textColor || '#f5b80f') }}
+                    className="text-base sm:text-lg md:text-xl font-moul mt-2 tracking-normal flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 drop-shadow-sm"
                   >
                     <span>{event.groom}</span>
                     {!event.singlePerson && (
                       <>
-                        <span className="text-amber-400 font-serif italic text-base sm:text-lg">&</span>
+                        <span style={{ color: hwGoldColor }} className="font-serif italic text-base sm:text-lg">&amp;</span>
                         <span>{event.bride}</span>
                       </>
                     )}
@@ -2344,23 +2443,27 @@ export default function App() {
                 <>
                   <div
                     style={{
-                      color: config.primaryColor || '#f5b80f',
+                      color: isHousewarming ? sectionPrimaryColor : (config.primaryColor || '#f5b80f'),
                       fontFamily: "'Noto Serif Khmer', serif",
                     }}
-                    className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 sm:gap-4 text-2xl sm:text-3xl md:text-4xl lg:text-5xl group-hover:brightness-110 transition-all tracking-wide drop-shadow-[0_2px_8px_rgba(245,158,11,0.4)]"
+                    className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 sm:gap-4 text-2xl sm:text-3xl md:text-4xl group-hover:brightness-110 transition-all tracking-normal drop-shadow-[0_2px_8px_rgba(0,0,0,0.2)]"
                   >
                     <span
-                      style={{ fontSize: '38px', fontFamily: "'Noto Serif Khmer', serif" }}
-                      className="text-[38px] inline-block"
+                      style={{ fontFamily: "'Noto Serif Khmer', serif" }}
+                      className="text-2xl sm:text-3xl md:text-[36px] inline-block font-bold"
                     >
                       {event.groom}
                     </span>
                     {!event.singlePerson && (
                       <>
-                        <RingIcon className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 inline-block mx-1.5 shrink-0 drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)] animate-pulse" />
+                        {isHousewarming ? (
+                          <Home style={{ color: hwGoldColor }} className="w-6 h-6 sm:w-7 sm:h-7 inline-block mx-1 shrink-0" />
+                        ) : (
+                          <RingIcon className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 inline-block mx-1.5 shrink-0 drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)] animate-pulse" />
+                        )}
                         <span
-                          style={{ fontSize: '38px', fontFamily: "'Noto Serif Khmer', serif" }}
-                          className="text-[38px] inline-block"
+                          style={{ fontFamily: "'Noto Serif Khmer', serif" }}
+                          className="text-2xl sm:text-3xl md:text-[36px] inline-block font-bold"
                         >
                           {event.bride}
                         </span>
@@ -2369,15 +2472,15 @@ export default function App() {
                   </div>
                   <p
                     style={{
-                      color: config.textColor || '#f5b80f',
-                      fontFamily: config.cover_en_font_family || undefined,
+                      color: isHousewarming ? hwGoldColor : (config.textColor || '#f5b80f'),
+                      fontFamily: isHousewarming ? (config.cover_en_font_family || "'Playfair Display', serif") : (config.cover_en_font_family || undefined),
                     }}
-                    className={`text-2xl sm:text-3xl md:text-4xl ${!config.cover_en_font_family ? 'font-norican' : ''} mt-2 tracking-wider flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1`}
+                    className={`text-xl sm:text-2xl md:text-3xl ${!config.cover_en_font_family && !isHousewarming ? 'font-norican' : 'font-semibold'} mt-2 tracking-wide flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1`}
                   >
                     <span className="capitalize">{event.groomEn || 'Ro Malay'}</span>
                     {!event.singlePerson && (
                       <>
-                        <span className="text-amber-400 font-serif italic text-base sm:text-lg">&</span>
+                        <span style={{ color: hwGoldColor }} className="font-serif italic text-base sm:text-lg">&amp;</span>
                         <span className="capitalize">{event.brideEn || 'Uom Volak'}</span>
                       </>
                     )}
@@ -2386,7 +2489,7 @@ export default function App() {
               )}
 
               {/* Bottom Traditional Khmer Floral Divider */}
-              <KhmerDividerKbach className="w-48 sm:w-64 h-5 mt-3" color={config.primaryColor || '#f5b80f'} />
+              <KhmerDividerKbach className="w-48 sm:w-64 h-5 mt-3" color={isHousewarming ? hwGoldColor : (config.primaryColor || '#f5b80f')} />
             </motion.div>
 
             {/* Personalized Guest Badge / Royal Gold Ribbon Banner or Custom Envelope Frame */}
@@ -2465,18 +2568,48 @@ export default function App() {
               initial={{ opacity: 0, y: 30, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ type: 'spring', damping: 16, stiffness: 100, delay: 0.68 }}
-              style={{ color: config.textColor || '#f5b80f' }}
+              style={{ color: isHousewarming ? sectionTextColor : (config.textColor || '#f5b80f') }}
               className="space-y-3.5 text-xs sm:text-sm font-khmer my-4"
             >
               <div
                 id="header-date-chip"
-                className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full ${theme === 'light' ? 'bg-white/90 shadow-[0_6px_25px_rgba(0,0,0,0.1)]' : 'bg-gradient-to-r from-black/90 via-[#1c1608]/95 to-black/90 shadow-[0_6px_25px_rgba(245,184,15,0.3)]'} border border-amber-400/60 backdrop-blur-md transition-all duration-300 hover:scale-[1.02] hover:border-amber-300 ring-1 ring-amber-400/25 group`}
+                className={`inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full border backdrop-blur-md transition-all duration-300 hover:scale-[1.02] group ${
+                  isHousewarming
+                    ? theme === 'light'
+                      ? 'bg-[#f4f7f1]/95 border-emerald-700/35 shadow-[0_6px_22px_rgba(16,59,42,0.1)]'
+                      : 'bg-gradient-to-r from-[#041811]/95 via-[#092b1f]/95 to-[#041811]/95 border-[#f4cb5c]/50 shadow-[0_6px_24px_rgba(0,0,0,0.45)]'
+                    : theme === 'light'
+                    ? 'bg-white/90 shadow-[0_6px_25px_rgba(0,0,0,0.1)] border-amber-400/60 hover:border-amber-300 ring-1 ring-amber-400/25'
+                    : 'bg-gradient-to-r from-black/90 via-[#1c1608]/95 to-black/90 shadow-[0_6px_25px_rgba(245,184,15,0.3)] border-amber-400/60 hover:border-amber-300 ring-1 ring-amber-400/25'
+                }`}
               >
-                <div className={`p-1.5 rounded-full ${theme === 'light' ? 'bg-amber-100/50 text-amber-600 border-amber-300' : 'bg-amber-400/20 border-amber-400/40 text-amber-300'} border shadow-inner group-hover:scale-110 transition-transform`}>
-                  <Calendar className={`w-4 h-4 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
+                <div
+                  className={`p-1.5 rounded-full border shadow-inner group-hover:scale-110 transition-transform ${
+                    isHousewarming
+                      ? theme === 'light'
+                        ? 'bg-emerald-100 text-[#0e5c40] border-emerald-700/25'
+                        : 'bg-emerald-900/50 border-[#f4cb5c]/40 text-[#f4cb5c]'
+                      : theme === 'light'
+                      ? 'bg-amber-100/50 text-amber-600 border-amber-300'
+                      : 'bg-amber-400/20 border-amber-400/40 text-amber-300'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-center">
-                  <span className={`tracking-wide font-medium ${theme === 'light' ? 'text-amber-950' : 'text-amber-100'} drop-shadow-sm text-xs sm:text-sm`}>
+                  <span
+                    className={`font-medium text-xs sm:text-sm ${
+                      language === 'kh' ? 'tracking-normal' : 'tracking-wide'
+                    } ${
+                      isHousewarming
+                        ? theme === 'light'
+                          ? 'text-[#103b2a]'
+                          : 'text-[#fef8e8]'
+                        : theme === 'light'
+                        ? 'text-amber-950'
+                        : 'text-amber-100 drop-shadow-sm'
+                    }`}
+                  >
                     {(() => {
                       const day2Shift = event.schedules?.[0]?.shifts?.[1];
                       if (day2Shift?.date) {
@@ -2492,13 +2625,13 @@ export default function App() {
 
               <div
                 onClick={() => handleOpenEditor('design')}
-                style={{ color: config.textColor || '#f5b80f' }}
-                className="flex items-center justify-center gap-2 px-4 py-1.5 max-w-md mx-auto text-center opacity-90 hover:opacity-100 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer group leading-relaxed rounded-xl hover:bg-amber-400/10 border border-transparent hover:border-amber-400/30"
+                style={{ color: isHousewarming ? sectionTextColor : (config.textColor || '#f5b80f') }}
+                className="flex items-center justify-center gap-2 px-4 py-1.5 max-w-md mx-auto text-center opacity-90 hover:opacity-100 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer group leading-relaxed rounded-xl hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30"
                 title={language === 'kh' ? 'ចុចដើម្បីកែប្រែព័ត៌មាន និងការរចនា / Click to edit in Design settings' : 'Click to edit in Design settings'}
               >
-                <MapPin className="w-4 h-4 text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="group-hover:text-amber-200 transition-colors font-khmer">{language === 'kh' ? event.location : (event.locationEn || event.location)}</span>
-                <Edit3 className="w-3 h-3 text-amber-400/60 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                <MapPin className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" style={{ color: isHousewarming ? hwGoldColor : '#f5b80f' }} />
+                <span className="transition-colors font-khmer">{language === 'kh' ? event.location : (event.locationEn || event.location)}</span>
+                <Edit3 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity ml-1" style={{ color: isHousewarming ? hwGoldColor : '#f5b80f' }} />
               </div>
             </motion.div>
 
@@ -2507,12 +2640,18 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.82 }}
-              className="mt-10 mb-2 flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity"
+              className="mt-10 mb-2 flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity"
             >
-              <span className="text-xs font-khmer text-amber-300 tracking-wider">
+              <span
+                style={{ color: isHousewarming ? hwGoldColor : undefined }}
+                className={`text-xs font-khmer ${isHousewarming ? '' : 'text-amber-300 tracking-wider'}`}
+              >
                 {language === 'kh' ? 'សូមអូសចុះក្រោម' : 'Scroll down'}
               </span>
-              <ChevronDown className="w-4 h-4 text-amber-400 animate-bounce" />
+              <ChevronDown
+                style={{ color: isHousewarming ? hwGoldColor : undefined }}
+                className={`w-4 h-4 animate-bounce ${isHousewarming ? '' : 'text-amber-400'}`}
+              />
             </motion.div>
           </div>
         </header>
@@ -2524,7 +2663,15 @@ export default function App() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className={`p-8 sm:p-12 rounded-3xl ${theme === 'light' ? 'bg-gradient-to-b from-white/95 via-amber-50/80 to-white/90 border-amber-300/80 shadow-[0_15px_40px_rgba(245,184,15,0.2)]' : 'bg-gradient-to-b from-black/80 via-amber-950/30 to-black/85 border-amber-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'} border-2 backdrop-blur-md relative overflow-hidden`}
+            className={`p-8 sm:p-12 rounded-3xl border-2 backdrop-blur-md relative overflow-hidden ${
+              isHousewarming
+                ? theme === 'light'
+                  ? 'bg-gradient-to-b from-[#f4f7f1] via-white to-[#eef4ea] border-emerald-700/30 shadow-[0_15px_40px_rgba(16,59,42,0.12)]'
+                  : 'bg-gradient-to-b from-[#07241a]/95 via-[#051a13]/95 to-[#04140e]/95 border-[#d4af37]/40 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'
+                : theme === 'light'
+                ? 'bg-gradient-to-b from-white/95 via-amber-50/80 to-white/90 border-amber-300/80 shadow-[0_15px_40px_rgba(245,184,15,0.2)]'
+                : 'bg-gradient-to-b from-black/80 via-amber-950/30 to-black/85 border-amber-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.6)]'
+            }`}
           >
             {/* Khmer Royal Corner Ornaments on the Formal Letter */}
             <div className="absolute top-2 left-2 pointer-events-none opacity-85">
@@ -2541,25 +2688,35 @@ export default function App() {
             </div>
 
             {/* Inner Gold Hairline Frame */}
-            <div className="absolute inset-2 sm:inset-3 rounded-2xl border border-amber-400/25 pointer-events-none" />
+            <div
+              className={`absolute inset-2 sm:inset-3 rounded-2xl border pointer-events-none ${
+                isHousewarming ? 'border-[#d4af37]/30' : 'border-amber-400/25'
+              }`}
+            />
 
-            {/* Royal Gold Ring & Sparkle Crest */}
-            <div className="relative z-10 w-14 h-14 rounded-full bg-gradient-to-br from-[#fff3b0] via-[#f5b80f] to-[#b45309] flex items-center justify-center mx-auto mb-4 shadow-[0_6px_20px_rgba(245,184,15,0.4)] text-amber-950 border border-amber-200">
-              <RingIcon className="w-7 h-7 text-amber-950" />
-            </div>
+            {/* Crest Emblem */}
+            {isHousewarming ? (
+              <div className="relative z-10 w-14 h-14 rounded-full bg-gradient-to-br from-[#0e4531] via-[#156045] to-[#0a3324] flex items-center justify-center mx-auto mb-4 shadow-[0_6px_20px_rgba(16,185,129,0.28)] border border-[#f4cb5c]/70">
+                <Home className="w-7 h-7 text-[#f4cb5c]" />
+              </div>
+            ) : (
+              <div className="relative z-10 w-14 h-14 rounded-full bg-gradient-to-br from-[#fff3b0] via-[#f5b80f] to-[#b45309] flex items-center justify-center mx-auto mb-4 shadow-[0_6px_20px_rgba(245,184,15,0.4)] text-amber-950 border border-amber-200">
+                <RingIcon className="w-7 h-7 text-amber-950" />
+              </div>
+            )}
 
             <ShapedTitleText
               text={textContent.invitation_title}
               shape={config.title_text_shape}
-              color={config.primaryColor || '#f5b80f'}
-              fontFamily="'Khmer OS Bokor', 'Bokor', display"
+              color={isHousewarming ? sectionPrimaryColor : (config.primaryColor || '#f5b80f')}
+              fontFamily="'Moul', 'Noto Serif Khmer', serif"
               className="relative z-10 mb-2"
             />
 
-            <KhmerDividerKbach className="w-40 sm:w-52 h-4 my-2 opacity-90" color={config.primaryColor || '#f5b80f'} />
+            <KhmerDividerKbach className="w-40 sm:w-52 h-4 my-2 opacity-90" color={isHousewarming ? hwGoldColor : (config.primaryColor || '#f5b80f')} />
 
             <p
-              style={{ color: config.textColor || '#f5b80f' }}
+              style={{ color: isHousewarming ? sectionTextColor : (config.textColor || '#f5b80f') }}
               className="relative z-10 text-sm sm:text-base font-khmer leading-loose my-5 max-w-2xl mx-auto opacity-95"
             >
               {textContent.invitation_message}
@@ -2580,20 +2737,21 @@ export default function App() {
           <CountdownSection
             event={event}
             language={language}
-            primaryColor={config.primaryColor || '#f5b80f'}
-            textColor={config.textColor || '#f5b80f'}
+            primaryColor={sectionPrimaryColor}
+            textColor={sectionTextColor}
             theme={theme}
           />
         </div>
 
-        {/* SECTION: WEDDING AGENDA / SCHEDULE */}
+        {/* SECTION: AGENDA / SCHEDULE */}
         <div className="relative z-10">
           <ScheduleSection
             shifts={event.schedules?.[0]?.shifts || []}
             language={language}
-            primaryColor={config.primaryColor || '#f5b80f'}
-            textColor={config.textColor || '#f5b80f'}
+            primaryColor={sectionPrimaryColor}
+            textColor={sectionTextColor}
             theme={theme}
+            eventType={currentTemplateTypeInfo.type}
           />
         </div>
 
@@ -2605,9 +2763,10 @@ export default function App() {
             mapImageUrl={config.event_location}
             mapUrl={config.map_url}
             language={language}
-            primaryColor={config.primaryColor || '#f5b80f'}
-            textColor={config.textColor || '#f5b80f'}
+            primaryColor={sectionPrimaryColor}
+            textColor={sectionTextColor}
             theme={theme}
+            eventType={currentTemplateTypeInfo.type}
             onEditLocation={!isViewer ? () => handleOpenEditor('design') : undefined}
           />
         </div>
@@ -2617,8 +2776,8 @@ export default function App() {
           <GallerySection
             photos={photosList}
             language={language}
-            primaryColor={config.primaryColor || '#f5b80f'}
-            textColor={config.textColor || '#f5b80f'}
+            primaryColor={sectionPrimaryColor}
+            textColor={sectionTextColor}
             theme={theme}
             eventType={event.eventType}
             defaultLayoutStyle={config.gallery_layout_style}
@@ -2636,9 +2795,10 @@ export default function App() {
             bride={event.bride}
             singlePerson={event.singlePerson}
             language={language}
-            primaryColor={config.primaryColor || '#f5b80f'}
-            textColor={config.textColor || '#f5b80f'}
+            primaryColor={sectionPrimaryColor}
+            textColor={sectionTextColor}
             theme={theme}
+            eventType={currentTemplateTypeInfo.type}
           />
         </div>
 
@@ -2649,16 +2809,24 @@ export default function App() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className={`p-6 rounded-2xl ${theme === 'light' ? 'bg-amber-50/50 border-amber-200/50' : 'bg-amber-950/20 border-amber-500/20'} border shadow-lg relative`}
+            className={`p-6 rounded-2xl border shadow-lg relative overflow-hidden ${
+              isHousewarming
+                ? theme === 'light'
+                  ? 'bg-[#f4f7f1] border-emerald-700/25'
+                  : 'bg-[#072118]/90 border-[#d4af37]/35'
+                : theme === 'light'
+                ? 'bg-amber-50/50 border-amber-200/50'
+                : 'bg-amber-950/20 border-amber-500/20'
+            }`}
           >
             <h3
-              style={{ color: config.primaryColor || '#f5b80f' }}
+              style={{ color: sectionPrimaryColor }}
               className="text-base font-moul mb-2"
             >
               {textContent.gratitude_title || (language === 'kh' ? 'សូមអរគុណ និងសូមអភ័យទោស' : 'Gratitude & Sincere Apology')}
             </h3>
             <p
-              style={{ color: config.textColor || '#f5b80f' }}
+              style={{ color: sectionTextColor }}
               className="text-xs sm:text-sm font-khmer leading-relaxed opacity-90"
             >
               {textContent.gratitude_message}
@@ -2671,10 +2839,11 @@ export default function App() {
           <WishesSection
             defaultGuestName={guestName}
             language={language}
-            primaryColor={config.primaryColor || '#f5b80f'}
-            textColor={config.textColor || '#f5b80f'}
+            primaryColor={sectionPrimaryColor}
+            textColor={sectionTextColor}
             theme={theme}
             isAdmin={isAdmin}
+            eventType={currentTemplateTypeInfo.type}
           />
         </div>
 

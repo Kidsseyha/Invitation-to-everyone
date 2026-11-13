@@ -15,6 +15,7 @@ import {
   CalendarCheck,
   Calendar,
   Layers,
+  Home,
 } from 'lucide-react';
 import { Language, Shift } from '../types';
 import RingIcon from './RingIcon';
@@ -26,6 +27,7 @@ interface ScheduleSectionProps {
   primaryColor?: string;
   textColor?: string;
   theme?: ThemeMode;
+  eventType?: string;
 }
 
 export default function ScheduleSection({
@@ -34,7 +36,9 @@ export default function ScheduleSection({
   primaryColor = '#f5b80f',
   textColor = '#f5b80f',
   theme = 'dark',
+  eventType,
 }: ScheduleSectionProps) {
+  const isHousewarming = eventType === 'housewarming';
   // Always display all days sequentially (Day 1 then Day 2)
   const [quickJumpIdx, setQuickJumpIdx] = useState<number | null>(null);
 
@@ -85,10 +89,26 @@ export default function ScheduleSection({
       >
         {/* Title */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-950/50 border border-amber-500/30 text-xs font-khmer mb-2 shadow-sm">
-            <CalendarCheck className="w-3.5 h-3.5" style={{ color: primaryColor }} />
+          <div
+            className={`inline-flex items-center gap-2 px-3.5 py-1 rounded-full border text-xs font-khmer mb-2 shadow-sm ${
+              isHousewarming
+                ? theme === 'light'
+                  ? 'bg-emerald-900/10 border-emerald-700/30'
+                  : 'bg-emerald-950/60 border-emerald-400/35'
+                : 'bg-amber-950/50 border-amber-500/30'
+            }`}
+          >
+            {isHousewarming ? (
+              <Home className="w-3.5 h-3.5" style={{ color: primaryColor }} />
+            ) : (
+              <CalendarCheck className="w-3.5 h-3.5" style={{ color: primaryColor }} />
+            )}
             <span style={{ color: primaryColor }}>
-              {shifts.length > 1
+              {isHousewarming
+                ? language === 'kh'
+                  ? 'កម្មវិធីពិធីឡើងគេហដ្ឋានថ្មី'
+                  : 'Housewarming Program'
+                : shifts.length > 1
                 ? language === 'kh'
                   ? 'កម្មវិធីមង្គលការ ២ ថ្ងៃ'
                   : '2-Day Wedding Program'
@@ -101,13 +121,21 @@ export default function ScheduleSection({
             style={{ color: primaryColor }}
             className="text-xl sm:text-2xl font-moul drop-shadow-sm"
           >
-            {language === 'kh' ? 'របៀបវារៈកម្មវិធី' : 'WEDDING AGENDA'}
+            {language === 'kh'
+              ? 'របៀបវារៈកម្មវិធី'
+              : isHousewarming
+              ? 'HOUSEWARMING AGENDA'
+              : 'WEDDING AGENDA'}
           </h2>
           <p
             style={{ color: textColor }}
             className="text-xs font-khmer mt-1 opacity-90"
           >
-            {language === 'kh'
+            {isHousewarming
+              ? language === 'kh'
+                ? 'កម្មវិធីតាមគន្លងប្រពៃណីខ្មែរ និងធម្មជាតិស្រស់បំព្រង'
+                : 'Traditional Khmer Housewarming Itinerary'
+              : language === 'kh'
               ? 'បែងចែកជាពីរថ្ងៃ តាមគន្លងប្រពៃណីខ្មែរ'
               : '2-Day Traditional Khmer Wedding Itinerary'}
           </p>
@@ -235,7 +263,11 @@ export default function ScheduleSection({
                 key={`sched-shift-${shift.id || shiftIndex}-${shiftIndex}`}
                 id={`schedule-day-${shiftIndex}`}
                 className={`p-4 sm:p-5 rounded-2xl border relative overflow-hidden backdrop-blur-sm scroll-mt-24 transition-all ${
-                  isCardDayOne
+                  isHousewarming
+                    ? theme === 'light'
+                      ? 'bg-gradient-to-b from-[#f3f7ef] via-white to-[#edf4e8] border-emerald-700/25 shadow-lg'
+                      : 'bg-gradient-to-b from-[#08261c]/95 via-[#051b14]/95 to-[#04140e]/95 border-[#d4af37]/35 shadow-2xl ring-1 ring-emerald-400/15'
+                    : isCardDayOne
                     ? theme === 'light'
                       ? 'bg-gradient-to-b from-amber-50/90 via-white to-amber-50/60 border-amber-300 shadow-xl'
                       : 'bg-gradient-to-b from-[#181308]/95 via-black/90 to-black/95 border-amber-500/40 shadow-2xl ring-1 ring-amber-400/20'
@@ -273,7 +305,11 @@ export default function ScheduleSection({
                     <div>
                       <h3
                         className={`text-sm sm:text-base font-bold font-moul leading-snug ${
-                          isCardDayOne
+                          isHousewarming
+                            ? theme === 'light'
+                              ? 'text-[#103b2a]'
+                              : 'text-amber-200'
+                            : isCardDayOne
                             ? theme === 'light'
                               ? 'text-amber-950'
                               : 'text-amber-200'
@@ -287,7 +323,11 @@ export default function ScheduleSection({
                       {shift.date && (
                         <span
                           className={`text-[11px] font-mono flex items-center gap-1.5 mt-0.5 ${
-                            isCardDayOne
+                            isHousewarming
+                              ? theme === 'light'
+                                ? 'text-emerald-800'
+                                : 'text-emerald-300/85'
+                              : isCardDayOne
                               ? theme === 'light'
                                 ? 'text-amber-800'
                                 : 'text-amber-300/80'
@@ -298,7 +338,11 @@ export default function ScheduleSection({
                         >
                           <Calendar
                             className={`w-3 h-3 ${
-                              isCardDayOne
+                              isHousewarming
+                                ? theme === 'light'
+                                  ? 'text-emerald-700'
+                                  : 'text-emerald-400'
+                                : isCardDayOne
                                 ? theme === 'light'
                                   ? 'text-amber-600'
                                   : 'text-amber-400'
@@ -315,7 +359,11 @@ export default function ScheduleSection({
 
                   <span
                     className={`px-3 py-1 rounded-full border text-[11px] font-khmer font-bold shrink-0 shadow-sm ${
-                      isCardDayOne
+                      isHousewarming
+                        ? theme === 'light'
+                          ? 'bg-emerald-100/80 border-emerald-700/30 text-[#103b2a]'
+                          : 'bg-emerald-900/50 border-emerald-400/40 text-amber-200'
+                        : isCardDayOne
                         ? theme === 'light'
                           ? 'bg-amber-100 border-amber-300 text-amber-900'
                           : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
@@ -331,7 +379,11 @@ export default function ScheduleSection({
                 {/* Timeline list */}
                 <div
                   className={`relative pl-6 border-l-2 space-y-5 my-2 ${
-                    isCardDayOne ? 'border-amber-500/30' : 'border-rose-500/30'
+                    isHousewarming
+                      ? 'border-emerald-500/35'
+                      : isCardDayOne
+                      ? 'border-amber-500/30'
+                      : 'border-rose-500/30'
                   }`}
                 >
                   {shift.timeLine.map((item, idx) => (
@@ -344,22 +396,72 @@ export default function ScheduleSection({
                       className="relative group"
                     >
                       {/* Timeline dot with ceremony icon */}
-                      <div className={`absolute -left-[31px] top-1.5 w-6 h-6 rounded-full ${theme === 'light' ? 'bg-white border-amber-500 shadow-[0_2px_8px_rgba(0,0,0,0.1)]' : 'bg-black border-amber-400 shadow-black/60 shadow-md'} border-2 flex items-center justify-center group-hover:scale-110 group-hover:border-amber-300 transition-all`}>
+                      <div
+                        className={`absolute -left-[31px] top-1.5 w-6 h-6 rounded-full border-2 flex items-center justify-center group-hover:scale-110 transition-all ${
+                          isHousewarming
+                            ? theme === 'light'
+                              ? 'bg-[#f8f5eb] border-emerald-700 shadow-sm'
+                              : 'bg-[#062017] border-[#f4cb5c] shadow-md'
+                            : theme === 'light'
+                            ? 'bg-white border-amber-500 shadow-[0_2px_8px_rgba(0,0,0,0.1)] group-hover:border-amber-300'
+                            : 'bg-black border-amber-400 shadow-black/60 shadow-md group-hover:border-amber-300'
+                        }`}
+                      >
                         {getIcon(item.icon)}
                       </div>
 
                       {/* Card */}
-                      <div className={`p-3 sm:p-3.5 rounded-xl ${theme === 'light' ? 'bg-amber-50/50 hover:bg-amber-100/50 border-amber-200 hover:border-amber-400' : 'bg-black/50 hover:bg-black/70 border-amber-500/20 hover:border-amber-500/40'} border transition-all shadow-sm`}>
+                      <div
+                        className={`p-3 sm:p-3.5 rounded-xl border transition-all shadow-sm ${
+                          isHousewarming
+                            ? theme === 'light'
+                              ? 'bg-white/90 hover:bg-emerald-50/60 border-emerald-700/20 hover:border-emerald-700/45'
+                              : 'bg-[#041711]/75 hover:bg-[#07261c]/85 border-emerald-500/25 hover:border-[#f4cb5c]/50'
+                            : theme === 'light'
+                            ? 'bg-amber-50/50 hover:bg-amber-100/50 border-amber-200 hover:border-amber-400'
+                            : 'bg-black/50 hover:bg-black/70 border-amber-500/20 hover:border-amber-500/40'
+                        }`}
+                      >
                         <div className="flex items-center gap-2 mb-1.5">
-                          <span className={`inline-block px-2 py-0.5 rounded-md ${theme === 'light' ? 'bg-amber-200/50 text-amber-800 border-amber-300' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'} text-[11px] font-bold tracking-wider font-mono border`}>
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold tracking-wider font-mono border ${
+                              isHousewarming
+                                ? theme === 'light'
+                                  ? 'bg-emerald-100/80 text-[#0e5c40] border-emerald-700/25'
+                                  : 'bg-emerald-950/70 text-[#f4cb5c] border-[#f4cb5c]/35'
+                                : theme === 'light'
+                                ? 'bg-amber-200/50 text-amber-800 border-amber-300'
+                                : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                            }`}
+                          >
                             {item.time}
                           </span>
                         </div>
-                        <h4 className={`text-xs sm:text-sm font-semibold font-khmer ${theme === 'light' ? 'text-amber-950' : 'text-amber-100'} leading-snug`}>
+                        <h4
+                          className={`text-xs sm:text-sm font-semibold font-khmer leading-snug ${
+                            isHousewarming
+                              ? theme === 'light'
+                                ? 'text-[#103b2a]'
+                                : 'text-[#fef8e8]'
+                              : theme === 'light'
+                              ? 'text-amber-950'
+                              : 'text-amber-100'
+                          }`}
+                        >
                           {language === 'kh' ? item.name : item.nameEn || item.name}
                         </h4>
                         {language === 'en' && item.nameEn && (
-                          <p className={`text-[11px] ${theme === 'light' ? 'text-neutral-600' : 'text-neutral-400'} font-sans mt-0.5`}>
+                          <p
+                            className={`text-[11px] font-sans mt-0.5 ${
+                              isHousewarming
+                                ? theme === 'light'
+                                  ? 'text-emerald-900/70'
+                                  : 'text-emerald-200/70'
+                                : theme === 'light'
+                                ? 'text-neutral-600'
+                                : 'text-neutral-400'
+                            }`}
+                          >
                             {item.nameEn}
                           </p>
                         )}

@@ -1,15 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ChevronDown, Check, X } from 'lucide-react';
-import {
-  KhmerCardLuxuryFrameLayer,
-  KhmerTopLotusGarland,
-  KhmerDiamondDivider,
-  KhmerRoyalGoldMedallion,
-  KhmerKbachGuestCartouche,
-  KhmerRoyalActionOpenButton,
-} from './KhmerInvitationOrnaments';
-import { extractKhmerMonogramInitials } from '../utils/khmerEnvelopeStyles';
 
 interface TheapKhmerTemplate15CoverProps {
   groom?: string;
@@ -34,21 +25,47 @@ interface TheapKhmerTemplate15CoverProps {
 
 export function TheapKhmerDivider({
   className = '',
+  inverted = false,
 }: {
   className?: string;
   inverted?: boolean;
 }) {
-  return <KhmerDiamondDivider className={className || 'w-48 sm:w-56 h-5'} accentColor="#8B2435" />;
+  return (
+    <img
+      src="/assets/template15/divider.webp"
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      className={`pointer-events-none select-none object-contain ${inverted ? 'scale-y-[-1]' : ''} ${className || 'w-48 sm:w-56 h-auto mx-auto'}`}
+    />
+  );
+}
+
+function getLatinInitial(nameEn?: string, nameKh?: string, fallback = 'R', useLastWord = false): string {
+  if (nameEn && nameEn.trim()) {
+    const cleaned = nameEn
+      .trim()
+      .replace(/^(mr|mrs|ms|miss|dr)\.?\s+/i, '');
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if (parts.length > 0) {
+      const target = useLastWord ? parts[parts.length - 1] : parts[0];
+      return target.charAt(0).toUpperCase();
+    }
+  }
+  if (nameKh && nameKh.trim()) {
+    return nameKh.trim().charAt(0);
+  }
+  return fallback;
 }
 
 export default function TheapKhmerTemplate15Cover({
-  groom = 'ជា ដារ៉ា',
-  bride = 'សុខ បុប្ផា',
-  groomEn,
-  brideEn,
-  subtitleKh = 'សិរីមង្គលអាពាហ៍ពិពាហ៍',
-  subtitleEn = 'ROYAL KHMER WEDDING',
-  guestName = 'ភ្ញៀវកិត្តិយស',
+  groom = 'រ៉ូ ម៉ាឡេ',
+  bride = 'អួម វល្ខ័ក',
+  groomEn = 'Ro Malay',
+  brideEn = 'Uom Volak',
+  subtitleKh = 'សិរីសួស្តីអាពាហ៍ពិពាហ៍',
+  subtitleEn = 'Wedding Celebration',
+  guestName = 'លោក ស្រី មករា',
   language = 'kh',
   isOpening = false,
   onOpenInvitation,
@@ -68,10 +85,11 @@ export default function TheapKhmerTemplate15Cover({
     guestName && guestName !== 'Your Name'
       ? guestName.trim()
       : language === 'kh'
-      ? 'ភ្ញៀវកិត្តិយស'
+      ? 'លោក ស្រី មករា'
       : 'Honored Guest';
 
-  const { groomInitial, brideInitial } = extractKhmerMonogramInitials(groom, bride, 'ម', 'វ');
+  const groomInit = getLatinInitial(groomEn, groom, 'R', false);
+  const brideInit = getLatinInitial(brideEn, bride, 'V', true);
 
   const handleSaveInline = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,120 +99,108 @@ export default function TheapKhmerTemplate15Cover({
     setIsEditingInlineGuest(false);
   };
 
-  const coupleDisplay =
-    language === 'kh'
-      ? `${groom || 'កូនកម្លោះ'}  &  ${bride || 'កូនក្រមុំ'}`
-      : `${groomEn || groom || 'Groom'}  &  ${brideEn || bride || 'Bride'}`;
-
   return (
     <div
-      className="relative isolate w-full h-full min-h-[620px] sm:min-h-[680px] md:min-h-[720px] flex flex-col justify-between items-center text-center overflow-hidden select-none px-5 sm:px-8 pt-12 sm:pt-14 pb-7 sm:pb-9"
+      className="relative isolate w-full h-full min-h-[620px] sm:min-h-[680px] md:min-h-[720px] flex flex-col justify-between items-center text-center overflow-hidden select-none px-5 sm:px-8 pt-24 sm:pt-28 pb-9 sm:pb-11"
       style={{
-        background: 'radial-gradient(ellipse at 50% 34%, #FFFDF8 0%, #FFF8E9 56%, #F6EBD4 100%)',
-        color: '#593B22',
+        backgroundColor: '#fcfaf5',
+        color: '#8f6c2e',
       }}
     >
-      {/* Subtle heritage cream parchment backdrop artwork */}
+      {/* Classical Floral Arch & Ionic Columns Wallpaper */}
       <img
         src="/assets/template15/opening-background.webp"
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="pointer-events-none absolute inset-0 z-0 h-full w-full select-none object-cover opacity-[0.22] mix-blend-multiply"
+        className="pointer-events-none absolute inset-0 z-0 h-full w-full select-none object-cover object-center"
       />
 
-      {/* Double Metallic Gold Borders & Cambodian Kbach Corners + Dotted Paper Pattern */}
-      <KhmerCardLuxuryFrameLayer accentColor="#8B2435" />
+      {/* Hanging White Floral Garlands at Arch Apex */}
+      <img
+        src="/assets/template15/hanging-flowers.webp"
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute top-0 inset-x-0 z-[2] w-full max-h-44 object-cover object-top select-none"
+      />
 
-      {/* Top Cambodian Lotus & Jasmine Garland Arch */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.85, ease: 'easeOut' }}
-        className="pointer-events-none absolute top-3 sm:top-4 inset-x-4 z-[4]"
-      >
-        <KhmerTopLotusGarland accentColor="#8B2435" />
-      </motion.div>
-
-      {/* 1. Header Hierarchy: Royal Title & English Subtitle & Diamond Separator */}
+      {/* 1. Header Banner Title + Golden Scrollwork Divider */}
       <motion.header
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.75, delay: 0.1, ease: 'easeOut' }}
-        className="relative z-[10] flex flex-col items-center mt-5 sm:mt-6 w-full"
+        transition={{ duration: 0.7, delay: 0.08, ease: 'easeOut' }}
+        className="relative z-[10] flex flex-col items-center w-full mt-2"
       >
         <h1
-          className="text-xl sm:text-2xl md:text-[26px] font-bold tracking-wide leading-[1.6] px-2"
+          className="text-2xl sm:text-[28px] font-bold tracking-wide leading-[1.65] px-2"
           style={{
-            fontFamily: language === 'kh' ? "'Moulpali', 'Moul', serif" : "'Playfair Display', Georgia, serif",
-            color: '#8B2435',
-            textShadow: '0 1px 0 rgba(255,255,255,0.9)',
+            fontFamily:
+              language === 'kh'
+                ? "'AKbalthom Kbach', 'AKbalthom-Kbach', 'Moulpali', 'Moul', serif"
+                : "'Playfair Display', Georgia, serif",
+            color: '#9c732d',
+            textShadow: '0 1px 2px rgba(255,255,255,0.95)',
           }}
         >
-          {language === 'kh' ? subtitleKh || 'សិរីសួស្តីអាពាហ៍ពិពាហ៍' : subtitleEn || 'ROYAL KHMER WEDDING'}
+          {language === 'kh' ? subtitleKh || 'សិរីសួស្តីអាពាហ៍ពិពាហ៍' : subtitleEn || 'Wedding Celebration'}
         </h1>
 
-        <span
-          className="text-[11px] sm:text-xs font-semibold tracking-[0.26em] uppercase mt-0.5"
-          style={{
-            color: '#8B6842',
-            fontFamily: language === 'kh' ? "'Playfair Display', Georgia, serif" : "'Moulpali', serif",
-          }}
-        >
-          {language === 'kh' ? subtitleEn || 'ROYAL KHMER WEDDING' : subtitleKh || 'សិរីសួស្តីអាពាហ៍ពិពាហ៍'}
-        </span>
-
-        <KhmerDiamondDivider className="w-44 sm:w-56 h-5 mt-2" accentColor="#8B2435" />
+        <TheapKhmerDivider className="w-48 sm:w-56 h-auto mt-1" />
       </motion.header>
 
-      {/* 2. Center Gold Wax Medallion with Burgundy Ribbon + Couple Names */}
+      {/* 2. Center Baroque Gold Monogram Wreath */}
       <motion.div
         initial={{ opacity: 0, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.85, delay: 0.22, ease: 'easeOut' }}
-        className="relative z-[10] flex flex-col items-center my-2 sm:my-3"
+        transition={{ duration: 0.75, delay: 0.16, ease: 'easeOut' }}
+        className="relative z-[10] flex items-center justify-center my-2"
       >
-        <motion.div
-          animate={{ y: [0, -3, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <KhmerRoyalGoldMedallion
-            leftInitial={groomInitial}
-            rightInitial={brideInitial}
-            ribbonColor="#8B2435"
-            showRibbon={true}
-            className="w-32 h-36 sm:w-36 sm:h-40"
+        <div className="relative w-36 h-36 sm:w-44 sm:h-44 flex items-center justify-center">
+          <img
+            src="/assets/template15/monogram.webp"
+            alt={`${groom} and ${bride} wedding monogram`}
+            draggable={false}
+            className="w-full h-full object-contain select-none drop-shadow-[0_4px_10px_rgba(148,110,44,0.2)]"
           />
-        </motion.div>
-
-        <p
-          className="mt-1 text-base sm:text-lg font-bold tracking-wide px-3"
-          style={{
-            fontFamily: language === 'kh' ? "'Moul', 'Moulpali', serif" : "'Playfair Display', serif",
-            color: '#593B22',
-            lineHeight: '1.7',
-          }}
-        >
-          {coupleDisplay}
-        </p>
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
+            style={{
+              fontFamily: "'Great Vibes', 'Playfair Display', Georgia, serif",
+              color: '#9c732d',
+              textShadow: '0 1px 1px rgba(255,255,255,0.9)',
+            }}
+          >
+            <span className="text-[28px] sm:text-[32px] italic font-semibold -translate-y-1.5 -translate-x-0.5">
+              {groomInit}
+            </span>
+            <span className="text-[19px] sm:text-[22px] italic font-medium mx-0.5 translate-y-0.5">
+              &amp;
+            </span>
+            <span className="text-[28px] sm:text-[32px] italic font-semibold translate-y-1.5 translate-x-0.5">
+              {brideInit}
+            </span>
+          </div>
+        </div>
       </motion.div>
 
-      {/* 3. Honored Guest Plaque & Admin Selection */}
+      {/* 3. Invited Guest Section */}
       <motion.section
         aria-label="Invited guest"
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.75, delay: 0.35, ease: 'easeOut' }}
-        className="relative z-[10] w-full flex flex-col items-center gap-2 my-1"
+        transition={{ duration: 0.7, delay: 0.24, ease: 'easeOut' }}
+        className="relative z-[10] w-full flex flex-col items-center gap-1.5 my-1"
       >
         {isAdmin && savedGuestsList.length > 0 && onSelectFromDropbox && (
-          <div className="w-full max-w-[260px] relative">
+          <div className="w-full max-w-[240px] relative mb-1">
             <select
               id="guest-dropbox-select-t15"
               value={savedGuestsList.some((g) => g.name === guestName) ? guestName : ''}
               onChange={(e) => onSelectFromDropbox(e.target.value)}
-              style={{ color: '#593B22', borderColor: '#D9A441' }}
-              className="w-full px-3 py-1.5 pr-7 rounded-full bg-[#FFFDF8] border text-xs font-khmer focus:outline-none cursor-pointer shadow-xs appearance-none"
+              style={{ color: '#8f6c2e', borderColor: '#c9a45c' }}
+              className="w-full px-3 py-1 pr-7 rounded-full bg-white/90 border text-xs font-khmer focus:outline-none cursor-pointer shadow-xs appearance-none"
             >
               <option value="" disabled>
                 {language === 'kh' ? '▼ ជ្រើសរើសឈ្មោះភ្ញៀវ...' : '▼ Select Guest...'}
@@ -208,14 +214,25 @@ export default function TheapKhmerTemplate15Cover({
                 + {language === 'kh' ? 'បន្ថែមឈ្មោះភ្ញៀវថ្មី...' : 'Add New Custom Guest...'}
               </option>
             </select>
-            <ChevronDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8B6842]" />
+            <ChevronDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9c732d]" />
           </div>
         )}
+
+        <p
+          className="text-base sm:text-lg font-bold tracking-wide"
+          style={{
+            fontFamily: language === 'kh' ? "'Moulpali', 'Moul', serif" : "'Playfair Display', Georgia, serif",
+            color: '#9c732d',
+            textShadow: '0 1px 2px rgba(255,255,255,0.95)',
+          }}
+        >
+          {language === 'kh' ? 'សូមគោរពអញ្ជើញ' : 'Cordially Invited'}
+        </p>
 
         {isEditingInlineGuest ? (
           <form
             onSubmit={handleSaveInline}
-            className="p-2 rounded-2xl bg-[#FFFDF8] border border-[#D9A441] shadow-md flex items-center gap-1.5"
+            className="p-2 rounded-2xl bg-white/95 border border-[#c9a45c] shadow-md flex items-center gap-1.5"
           >
             <input
               type="text"
@@ -223,11 +240,11 @@ export default function TheapKhmerTemplate15Cover({
               onChange={(e) => setTempGuestInput(e.target.value)}
               autoFocus
               placeholder={language === 'kh' ? 'បញ្ចូលឈ្មោះភ្ញៀវ...' : 'Enter guest name...'}
-              className="px-2.5 py-1 text-xs border rounded-lg border-[#E8BD65] font-moul text-center text-[#593B22] focus:outline-none"
+              className="px-2.5 py-1 text-xs border rounded-lg border-[#c9a45c] font-moul text-center text-[#7c5a1e] focus:outline-none"
             />
             <button
               type="submit"
-              className="px-2.5 py-1 bg-[#8B2435] text-white rounded-lg text-xs font-bold cursor-pointer hover:opacity-90"
+              className="px-2.5 py-1 bg-[#9c732d] text-white rounded-lg text-xs font-bold cursor-pointer hover:opacity-90"
             >
               <Check className="w-3.5 h-3.5" />
             </button>
@@ -240,55 +257,77 @@ export default function TheapKhmerTemplate15Cover({
             </button>
           </form>
         ) : (
-          <KhmerKbachGuestCartouche
-            invitedLabel={language === 'kh' ? 'សូមគោរពអញ្ជើញ' : 'Cordially Invited'}
-            guestName={displayGuest}
-            accentColor="#8B2435"
-            guestFontFamily={guestNameFontFamily}
-            guestColor={guestNameColor}
-            guestFontSize={guestNameFontSize}
-            isAdmin={isAdmin}
+          <h2
             onClick={() => {
-              if (isAdmin) {
-                if (onOpenAddGuestModal) {
-                  onOpenAddGuestModal();
-                } else {
-                  setTempGuestInput(displayGuest);
-                  setIsEditingInlineGuest(true);
-                }
+              if (!isAdmin) return;
+              if (onOpenAddGuestModal) {
+                onOpenAddGuestModal();
+              } else {
+                setTempGuestInput(displayGuest);
+                setIsEditingInlineGuest(true);
               }
             }}
             title={isAdmin ? (language === 'kh' ? 'ចុចដើម្បីបន្ថែម ឬកែឈ្មោះភ្ញៀវ' : 'Click to add or edit guest') : undefined}
-          />
+            className={`text-lg sm:text-xl font-bold tracking-wide px-4 ${
+              isAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''
+            }`}
+            style={{
+              fontFamily: guestNameFontFamily || "'Moul', 'Moulpali', 'Noto Serif Khmer', serif",
+              color:
+                guestNameColor && guestNameColor !== '#364153'
+                  ? guestNameColor
+                  : '#9c732d',
+              fontSize: guestNameFontSize ? `${guestNameFontSize}px` : undefined,
+              textShadow: '0 1px 2px rgba(255,255,255,0.95)',
+              lineHeight: 1.7,
+            }}
+          >
+            {displayGuest}
+          </h2>
         )}
+
+        <TheapKhmerDivider className="w-44 sm:w-52 h-auto mt-1" />
       </motion.section>
 
-      {/* 4. Interactive Gold-Foil Khmer Open Invitation Button */}
+      {/* 4. Framed Gold Open Invitation Button */}
       {onOpenInvitation && (
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.75, delay: 0.45, ease: 'easeOut' }}
-          className="relative z-[10] pt-3 flex flex-col items-center"
+          transition={{ duration: 0.7, delay: 0.32, ease: 'easeOut' }}
+          className="relative z-[10] flex flex-col items-center mt-1"
         >
-          <KhmerRoyalActionOpenButton
-            label={
-              isOpening
+          <button
+            type="button"
+            onClick={onOpenInvitation}
+            disabled={isOpening}
+            className="group relative inline-flex items-center justify-center w-52 sm:w-56 h-14 sm:h-16 cursor-pointer transition-transform duration-300 hover:scale-[1.03] active:scale-[0.98] disabled:opacity-70"
+          >
+            <img
+              src="/assets/template15/button-frame.webp"
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+              className="pointer-events-none absolute inset-0 w-full h-full object-contain select-none drop-shadow-[0_4px_12px_rgba(148,110,44,0.22)]"
+            />
+            <span
+              className="relative z-10 text-xs sm:text-sm font-bold tracking-wide"
+              style={{
+                fontFamily: language === 'kh' ? "'Moulpali', 'Noto Serif Khmer', serif" : "'Playfair Display', Georgia, serif",
+                color: '#8f6c2e',
+              }}
+            >
+              {isOpening
                 ? language === 'kh'
                   ? 'កំពុងបើក...'
                   : 'Opening...'
                 : language === 'kh'
                 ? 'បើកលិខិតអញ្ជើញ'
-                : 'Open Invitation'
-            }
-            sublabel={language === 'kh' ? 'OPEN INVITATION' : 'បើកលិខិតអញ្ជើញ'}
-            onOpen={onOpenInvitation}
-            isOpening={isOpening}
-            accentColor="#8B2435"
-          />
+                : 'Open Invitation'}
+            </span>
+          </button>
         </motion.div>
       )}
     </div>
   );
 }
-

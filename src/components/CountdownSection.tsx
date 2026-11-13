@@ -286,6 +286,9 @@ export default function CountdownSection({
     return findTemplatePreset(resolvedCategory) || findTemplatePreset(event.id);
   }, [resolvedCategory, event.id]);
 
+  const isHousewarming = resolvedCategory === 'housewarming';
+  const hwGoldHex = theme === 'light' ? '#8a5a10' : '#f4cb5c';
+
   // 2. Main Celebration Title dynamically adapted to the selected template & custom Design Settings (ចំណងជើងធំ)
   const celebrationMainTitle = useMemo(() => {
     const customKh = event.config?.invitation_kh?.main_title?.trim();
@@ -434,24 +437,28 @@ export default function CountdownSection({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="flex items-center justify-center gap-2 mb-1.5"
+          className="flex items-center justify-center gap-2 mb-1.5 px-2"
         >
-          <Sparkles className="w-4 h-4 animate-pulse" style={{ color: primaryColor }} />
+          <Sparkles className="w-4 h-4 animate-pulse shrink-0" style={{ color: primaryColor }} />
           <motion.h2
-            animate={{
-              textShadow: [
-                '0 0 6px rgba(245,184,15,0.2)',
-                '0 0 16px rgba(245,184,15,0.6)',
-                '0 0 6px rgba(245,184,15,0.2)',
-              ],
-            }}
+            animate={
+              isHousewarming
+                ? undefined
+                : {
+                    textShadow: [
+                      '0 0 6px rgba(245,184,15,0.2)',
+                      '0 0 16px rgba(245,184,15,0.6)',
+                      '0 0 6px rgba(245,184,15,0.2)',
+                    ],
+                  }
+            }
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             style={{ color: primaryColor, fontFamily: "'Noto Serif Khmer', serif" }}
-            className="text-base sm:text-lg md:text-xl font-bold tracking-wide"
+            className="text-sm sm:text-lg md:text-xl font-bold tracking-normal sm:tracking-wide text-center"
           >
             {sectionTitle}
           </motion.h2>
-          <Sparkles className="w-4 h-4 animate-pulse" style={{ color: primaryColor }} />
+          <Sparkles className="w-4 h-4 animate-pulse shrink-0" style={{ color: primaryColor }} />
         </motion.div>
 
         {/* Subtitle / Host Names (Flexible with EN / KH & Single vs Couple) */}
@@ -463,7 +470,7 @@ export default function CountdownSection({
           className="mb-6 flex flex-col items-center px-2"
         >
           {language === 'kh' ? (
-            <p className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xl sm:text-2xl md:text-3xl font-moul drop-shadow-sm tracking-wide text-center">
+            <p className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xl sm:text-2xl md:text-3xl font-moul drop-shadow-sm text-center">
               <motion.span
                 animate={{ scale: [1, 1.015, 1] }}
                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
@@ -474,7 +481,7 @@ export default function CountdownSection({
               </motion.span>
             </p>
           ) : (
-            <p className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 font-norican text-2xl sm:text-3xl md:text-4xl drop-shadow-sm tracking-wide capitalize text-center">
+            <p className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 font-norican text-2xl sm:text-3xl md:text-4xl drop-shadow-sm capitalize text-center">
               <motion.span
                 animate={{ scale: [1, 1.015, 1] }}
                 transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
@@ -489,21 +496,27 @@ export default function CountdownSection({
           {/* Secondary Subtitle Name in Alternative Language */}
           <div className="mt-1 text-center">
             {language === 'kh' ? (
-              <span className="font-norican capitalize tracking-wider text-[35px]" style={{ fontSize: '35px', color: primaryColor }}>
+              <span
+                className="font-norican capitalize text-xl sm:text-2xl md:text-[32px] leading-snug block"
+                style={{ color: isHousewarming ? hwGoldHex : primaryColor }}
+              >
                 {hostNames.en}
               </span>
             ) : (
-              <span className="font-moul tracking-wide text-[35px]" style={{ fontSize: '35px', color: primaryColor }}>
+              <span
+                className="font-moul text-lg sm:text-2xl md:text-[30px] leading-relaxed block"
+                style={{ color: isHousewarming ? hwGoldHex : primaryColor }}
+              >
                 {hostNames.kh}
               </span>
             )}
           </div>
 
-          <div className="mt-1.5 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-khmer text-center">
-            <Clock className="w-4 h-4 shrink-0" style={{ color: primaryColor }} />
+          <div className="mt-2 flex items-center justify-center gap-1.5 text-xs sm:text-base font-khmer text-center max-w-xl">
+            <Clock className="w-4 h-4 shrink-0" style={{ color: isHousewarming ? hwGoldHex : primaryColor }} />
             <span
-              className="text-[20px] text-left inline-block"
-              style={{ fontSize: '20px', textAlign: 'left', color: primaryColor }}
+              className="text-xs sm:text-base md:text-lg text-center leading-relaxed"
+              style={{ color: textColor }}
             >
               {language === 'kh'
                 ? formattedEventDateTime.kh
@@ -516,30 +529,90 @@ export default function CountdownSection({
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 mb-6 items-stretch">
           {/* 1. Monthly Calendar Tear-off Sheet (5 cols on md) */}
           <div className="md:col-span-5 flex flex-col">
-            <div className={`h-full rounded-2xl ${theme === 'light' ? 'bg-amber-50 border-amber-300 shadow-[0_8px_30px_rgba(0,0,0,0.1)]' : 'bg-gradient-to-b from-amber-400/15 via-[#1c1408]/90 to-black/95 border-amber-500/40 shadow-[0_8px_30px_rgba(0,0,0,0.5)]'} border p-3.5 sm:p-4 backdrop-blur-md flex flex-col justify-between`}>
+            <div
+              className={`h-full rounded-2xl border p-3.5 sm:p-4 backdrop-blur-md flex flex-col justify-between ${
+                isHousewarming
+                  ? theme === 'light'
+                    ? 'bg-[#fcfaf3]/95 border-[#146c43]/30 shadow-[0_10px_28px_rgba(14,92,64,0.1)]'
+                    : 'bg-gradient-to-b from-[#0d4d35]/75 via-[#072a1e]/95 to-[#041911] border-[#f4cb5c]/40 shadow-[0_12px_32px_rgba(2,14,10,0.65)]'
+                  : theme === 'light'
+                  ? 'bg-amber-50 border-amber-300 shadow-[0_8px_30px_rgba(0,0,0,0.1)]'
+                  : 'bg-gradient-to-b from-amber-400/15 via-[#1c1408]/90 to-black/95 border-amber-500/40 shadow-[0_8px_30px_rgba(0,0,0,0.5)]'
+              }`}
+            >
               {/* Calendar Month Header */}
-              <div className={`flex items-center justify-between pb-2.5 mb-2.5 border-b ${theme === 'light' ? 'border-amber-300/50' : 'border-amber-500/30'}`}>
+              <div
+                className={`flex items-center justify-between pb-2.5 mb-2.5 border-b ${
+                  isHousewarming
+                    ? theme === 'light'
+                      ? 'border-[#146c43]/20'
+                      : 'border-[#f4cb5c]/25'
+                    : theme === 'light'
+                    ? 'border-amber-300/50'
+                    : 'border-amber-500/30'
+                }`}
+              >
                 <div className="flex items-center gap-2 text-left">
-                  <div className={`w-8 h-8 rounded-lg ${theme === 'light' ? 'bg-amber-200 border-amber-300 text-amber-700' : 'bg-amber-400/20 border-amber-400/40 text-amber-300'} border flex items-center justify-center`}>
+                  <div
+                    className={`w-8 h-8 rounded-lg border flex items-center justify-center ${
+                      isHousewarming
+                        ? theme === 'light'
+                          ? 'bg-[#0e5c40]/10 border-[#0e5c40]/30 text-[#0e5c40]'
+                          : 'bg-[#f4cb5c]/15 border-[#f4cb5c]/40 text-[#f4cb5c]'
+                        : theme === 'light'
+                        ? 'bg-amber-200 border-amber-300 text-amber-700'
+                        : 'bg-amber-400/20 border-amber-400/40 text-amber-300'
+                    }`}
+                  >
                     <Calendar className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className={`text-sm font-bold font-moul ${theme === 'light' ? 'text-amber-900' : 'text-amber-300'} leading-tight`}>
+                    <h3
+                      className={`text-sm font-bold font-moul leading-tight ${
+                        isHousewarming
+                          ? theme === 'light'
+                            ? 'text-[#0e5c40]'
+                            : 'text-[#f4cb5c]'
+                          : theme === 'light'
+                          ? 'text-amber-900'
+                          : 'text-amber-300'
+                      }`}
+                    >
                       {language === 'kh'
                         ? `ខែ${calendarData.monthNameKh}`
                         : calendarData.monthNameEn}
                     </h3>
-                    <p className={`text-[11px] font-mono ${theme === 'light' ? 'text-amber-700' : 'text-amber-200/70'}`}>
+                    <p
+                      className={`text-[11px] font-mono ${
+                        isHousewarming
+                          ? theme === 'light'
+                            ? 'text-[#6c4b0e]'
+                            : 'text-[#e9d7a3]/85'
+                          : theme === 'light'
+                          ? 'text-amber-700'
+                          : 'text-amber-200/70'
+                      }`}
+                    >
                       {language === 'kh' ? toKhmerNumber(calendarData.year) : calendarData.year}
                     </p>
                   </div>
                 </div>
 
-                <span className={`text-[10px] sm:text-[11px] font-khmer px-2 py-0.5 rounded-full flex items-center gap-1 ${theme === 'light' ? 'bg-amber-200 text-amber-900 border-amber-400' : 'bg-amber-400/20 text-amber-300 border-amber-400/30'} border`}>
+                <span
+                  className={`text-[10px] sm:text-[11px] font-khmer px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                    isHousewarming
+                      ? theme === 'light'
+                        ? 'bg-[#0e5c40]/10 text-[#0e5c40] border-[#0e5c40]/25'
+                        : 'bg-[#f4cb5c]/15 text-[#f4cb5c] border-[#f4cb5c]/35'
+                      : theme === 'light'
+                      ? 'bg-amber-200 text-amber-900 border-amber-400'
+                      : 'bg-amber-400/20 text-amber-300 border-amber-400/30'
+                  }`}
+                >
                   {resolvedCategory === 'birthday' ? (
                     <Cake className={`w-2.5 h-2.5 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
                   ) : resolvedCategory === 'housewarming' ? (
-                    <Home className={`w-2.5 h-2.5 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
+                    <Home className={`w-2.5 h-2.5 ${theme === 'light' ? 'text-[#0e5c40]' : 'text-[#f4cb5c]'}`} />
                   ) : resolvedCategory === 'engagement' ? (
                     <Sparkles className={`w-2.5 h-2.5 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
                   ) : (
@@ -550,9 +623,32 @@ export default function CountdownSection({
               </div>
 
               {/* Days of Week Header */}
-              <div className={`grid grid-cols-7 gap-1 text-center mb-1.5 text-[10px] sm:text-xs font-semibold ${theme === 'light' ? 'text-amber-800' : 'text-amber-400/80'}`}>
+              <div
+                className={`grid grid-cols-7 gap-1 text-center mb-1.5 text-[10px] sm:text-xs font-semibold ${
+                  isHousewarming
+                    ? theme === 'light'
+                      ? 'text-[#0e5c40]'
+                      : 'text-[#b7dec9]'
+                    : theme === 'light'
+                    ? 'text-amber-800'
+                    : 'text-amber-400/80'
+                }`}
+              >
                 {(language === 'kh' ? WEEKDAYS_KH_SHORT : WEEKDAYS_EN_SHORT).map((dayName, idx) => (
-                  <div key={`cal-wday-${idx}`} className={`py-0.5 ${idx === 0 || idx === 6 ? (theme === 'light' ? 'text-red-700' : 'text-amber-300') : ''}`}>
+                  <div
+                    key={`cal-wday-${idx}`}
+                    className={`py-0.5 ${
+                      idx === 0 || idx === 6
+                        ? isHousewarming
+                          ? theme === 'light'
+                            ? 'text-[#8a5a10]'
+                            : 'text-[#f4cb5c]'
+                          : theme === 'light'
+                          ? 'text-red-700'
+                          : 'text-amber-300'
+                        : ''
+                    }`}
+                  >
                     {dayName}
                   </div>
                 ))}
@@ -569,13 +665,25 @@ export default function CountdownSection({
                     return (
                       <div
                         key={`cal-day-${cell.day}-${idx}`}
-                        title={language === 'kh' ? `${currentDayBadge}` : `${currentDayBadge}`}
-                        className="h-7 sm:h-8 rounded-lg bg-gradient-to-tr from-amber-400 to-amber-300 text-amber-950 font-bold flex flex-col items-center justify-center relative shadow-[0_0_15px_rgba(245,184,15,0.75)] ring-2 ring-amber-100 scale-105 animate-pulse-gold cursor-default"
+                        title={currentDayBadge}
+                        className={`h-7 sm:h-8 rounded-lg font-bold flex flex-col items-center justify-center relative scale-105 cursor-default ${
+                          isHousewarming
+                            ? 'bg-gradient-to-tr from-[#0e5c40] to-[#1a825c] text-[#fef8e8] shadow-[0_0_14px_rgba(20,108,67,0.45)] ring-2 ring-[#f4cb5c]'
+                            : 'bg-gradient-to-tr from-amber-400 to-amber-300 text-amber-950 shadow-[0_0_15px_rgba(245,184,15,0.75)] ring-2 ring-amber-100 animate-pulse-gold'
+                        }`}
                       >
                         <span className="text-[11px] sm:text-xs font-extrabold leading-none">
                           {language === 'kh' ? toKhmerNumber(cell.day) : cell.day}
                         </span>
-                        <Heart className="w-2 h-2 fill-amber-950 text-amber-950 mt-0.5" />
+                        {resolvedCategory === 'housewarming' ? (
+                          <Home className="w-2 h-2 text-[#f4cb5c] mt-0.5" />
+                        ) : resolvedCategory === 'birthday' ? (
+                          <Cake className="w-2 h-2 text-amber-950 mt-0.5" />
+                        ) : resolvedCategory === 'engagement' ? (
+                          <Sparkles className="w-2 h-2 text-amber-950 mt-0.5" />
+                        ) : (
+                          <Heart className="w-2 h-2 fill-amber-950 text-amber-950 mt-0.5" />
+                        )}
                       </div>
                     );
                   }
@@ -583,7 +691,15 @@ export default function CountdownSection({
                   return (
                     <div
                       key={`cal-day-${cell.day}-${idx}`}
-                      className={`h-7 sm:h-8 rounded-md flex items-center justify-center ${theme === 'light' ? 'text-amber-950 hover:bg-amber-100' : 'text-amber-200/80 hover:bg-amber-400/10'} transition-colors text-[11px] sm:text-xs`}
+                      className={`h-7 sm:h-8 rounded-md flex items-center justify-center transition-colors text-[11px] sm:text-xs ${
+                        isHousewarming
+                          ? theme === 'light'
+                            ? 'text-[#123d2c] hover:bg-[#0e5c40]/10'
+                            : 'text-[#d8ece1]/90 hover:bg-emerald-500/15'
+                          : theme === 'light'
+                          ? 'text-amber-950 hover:bg-amber-100'
+                          : 'text-amber-200/80 hover:bg-amber-400/10'
+                      }`}
                     >
                       {language === 'kh' ? toKhmerNumber(cell.day) : cell.day}
                     </div>
@@ -592,8 +708,24 @@ export default function CountdownSection({
               </div>
 
               {/* Calendar Footer Highlight Note */}
-              <div className={`mt-3 pt-2 border-t ${theme === 'light' ? 'border-amber-300/50 text-amber-800' : 'border-amber-500/20 text-amber-300/90'} text-[11px] font-khmer flex items-center justify-center gap-1.5 text-center px-1`}>
-                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_#f5b80f] shrink-0" />
+              <div
+                className={`mt-3 pt-2 border-t text-[11px] font-khmer flex items-center justify-center gap-1.5 text-center px-1 ${
+                  isHousewarming
+                    ? theme === 'light'
+                      ? 'border-[#146c43]/20 text-[#0e5c40]'
+                      : 'border-[#f4cb5c]/20 text-[#e7f3ec]'
+                    : theme === 'light'
+                    ? 'border-amber-300/50 text-amber-800'
+                    : 'border-amber-500/20 text-amber-300/90'
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full inline-block shrink-0 ${
+                    isHousewarming
+                      ? 'bg-[#1a825c] ring-2 ring-[#f4cb5c]/70'
+                      : 'bg-amber-400 shadow-[0_0_6px_#f5b80f]'
+                  }`}
+                />
                 <span>
                   {language === 'kh'
                     ? `ថ្ងៃទី${toKhmerNumber(calendarData.weddingDay)} ខែ${calendarData.monthNameKh} ៖ ${currentDayBadge}${activeTimelineInfo.programNameKh ? ` (${activeTimelineInfo.programNameKh})` : ` (${activeTimelineInfo.khH}:${activeTimelineInfo.khM} ${activeTimelineInfo.periodKh})`}`
@@ -608,9 +740,17 @@ export default function CountdownSection({
             {time.isExpired ? (
               <div
                 style={{ color: primaryColor }}
-                className={`h-full rounded-2xl ${theme === 'light' ? 'bg-amber-100/50 border-amber-300' : 'bg-amber-950/40 border-amber-500/40'} border p-6 flex flex-col items-center justify-center`}
+                className={`h-full rounded-2xl border p-6 flex flex-col items-center justify-center ${
+                  isHousewarming
+                    ? theme === 'light'
+                      ? 'bg-[#fcfaf3]/95 border-[#146c43]/30 shadow-[0_10px_28px_rgba(14,92,64,0.08)]'
+                      : 'bg-gradient-to-br from-[#0d4d35]/70 via-[#072a1e]/95 to-[#041911] border-[#f4cb5c]/35'
+                    : theme === 'light'
+                    ? 'bg-amber-100/50 border-amber-300'
+                    : 'bg-amber-950/40 border-amber-500/40'
+                }`}
               >
-                <Sparkles className="w-8 h-8 text-amber-400 mb-2" />
+                <Sparkles className={`w-8 h-8 mb-2 ${isHousewarming ? (theme === 'light' ? 'text-[#8a5a10]' : 'text-[#f4cb5c]') : 'text-amber-400'}`} />
                 <p className="text-xl sm:text-2xl font-moul">
                   {language === 'kh'
                     ? `${celebrationMainTitle.kh.startsWith('ពិធី') || celebrationMainTitle.kh.startsWith('កម្មវិធី') ? celebrationMainTitle.kh : `កម្មវិធី${celebrationMainTitle.kh}`}បានមកដល់ហើយ!`
@@ -726,9 +866,17 @@ export default function CountdownSection({
             href={gcalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold font-khmer ${theme === 'light' ? 'bg-white hover:bg-amber-50 border-amber-300 text-amber-700' : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-200'} border transition-all hover:scale-[1.02] shadow-sm`}
+            className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold font-khmer border transition-all hover:scale-[1.02] shadow-sm ${
+              isHousewarming
+                ? theme === 'light'
+                  ? 'bg-[#fcfaf3] hover:bg-[#0e5c40]/10 border-[#146c43]/30 text-[#0e5c40]'
+                  : 'bg-[#072a1e]/90 hover:bg-[#0e4531] border-[#f4cb5c]/35 text-[#fef8e8]'
+                : theme === 'light'
+                ? 'bg-white hover:bg-amber-50 border-amber-300 text-amber-700'
+                : 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-200'
+            }`}
           >
-            <Calendar className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'} shrink-0`} />
+            <Calendar className={`w-3.5 h-3.5 shrink-0 ${isHousewarming ? (theme === 'light' ? 'text-[#0e5c40]' : 'text-[#f4cb5c]') : theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
             <span>{language === 'kh' ? 'Google Calendar' : 'Google Calendar'}</span>
           </a>
 
@@ -738,9 +886,17 @@ export default function CountdownSection({
             onClick={() =>
               downloadIcsFile(calendarTitle, calendarDesc, event.location, targetIsoString)
             }
-            className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold font-khmer ${theme === 'light' ? 'bg-white hover:bg-amber-50 border-amber-300 text-amber-700' : 'bg-amber-950/40 hover:bg-amber-900/40 border-amber-500/30 text-amber-300'} border transition-all hover:scale-[1.02] shadow-sm`}
+            className={`flex-1 min-w-[130px] flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold font-khmer border transition-all hover:scale-[1.02] shadow-sm ${
+              isHousewarming
+                ? theme === 'light'
+                  ? 'bg-[#fcfaf3] hover:bg-[#0e5c40]/10 border-[#146c43]/30 text-[#0e5c40]'
+                  : 'bg-[#072a1e]/90 hover:bg-[#0e4531] border-[#f4cb5c]/35 text-[#f4cb5c]'
+                : theme === 'light'
+                ? 'bg-white hover:bg-amber-50 border-amber-300 text-amber-700'
+                : 'bg-amber-950/40 hover:bg-amber-900/40 border-amber-500/30 text-amber-300'
+            }`}
           >
-            <Download className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-amber-600' : 'text-amber-400'} shrink-0`} />
+            <Download className={`w-3.5 h-3.5 shrink-0 ${isHousewarming ? (theme === 'light' ? 'text-[#0e5c40]' : 'text-[#f4cb5c]') : theme === 'light' ? 'text-amber-600' : 'text-amber-400'}`} />
             <span>{language === 'kh' ? 'ទាញយក iCal' : 'Download iCal'}</span>
           </button>
         </div>

@@ -554,7 +554,7 @@ export const EVENT_PRESETS: EventTypePreset[] = [
     icon: 'home',
     accentColor: '#10b981',
     gradient: 'from-emerald-500/20 via-teal-600/10 to-transparent',
-    coverImage: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200&auto=format&fit=crop',
+    coverImage: '/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg',
     sampleEvent: {
       id: 'housewarming-hm001',
       eventType: 'housewarming',
@@ -568,7 +568,7 @@ export const EVENT_PRESETS: EventTypePreset[] = [
       locationEn: 'New Residence (Borey Chip Mong Land 60M Street)',
       eating_time: '05:30 PM',
       startTime: '2026-11-08T17:30:00+07:00',
-      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200&auto=format&fit=crop',
+      image: '/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg',
       schedules: [
         {
           id: 'sched-hw-1',
@@ -618,16 +618,16 @@ export const EVENT_PRESETS: EventTypePreset[] = [
         primaryColor: '#10b981',
         textColor: '#34d399',
         guestNameColor: '#364153',
-        main_background: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/free-background.jpg',
-        cover_background: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/free-background.jpg',
-        details_background: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/contents/cover-2.jpg',
+        main_background: '/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg',
+        cover_background: '/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg',
+        details_background: '/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg',
         background_music: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-2.mp3',
         event_location: 'https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/event/template/assets/1760584282359-vqmy8x-Maps.JPG',
         photo_gallary: {
-          photo1: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=600&auto=format&fit=crop',
-          photo2: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=600&auto=format&fit=crop',
-          photo3: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?q=80&w=600&auto=format&fit=crop',
-          photo4: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?q=80&w=600&auto=format&fit=crop',
+          photo1: '/assets/images/khmer_lotus_courtyard_1794537887190.jpg',
+          photo2: '/assets/images/khmer_teak_interior_1794537887941.jpg',
+          photo3: '/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg',
+          photo4: '/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg',
         },
         qr_code: 'https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=HOUSEWARMING_GIFT',
         bankInfo: {
@@ -785,8 +785,8 @@ export const EVENT_PRESETS: EventTypePreset[] = [
 
 export const VERIFIED_CATEGORY_COVERS = {
   wedding: khmerRoyalGoldWeddingCover,
-  engagement: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=1200&auto=format&fit=crop',
-  housewarming: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200&auto=format&fit=crop',
+  engagement: '/assets/aistudio/image_6e49a03a.png',
+  housewarming: '/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg',
   birthday: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?q=80&w=1200&auto=format&fit=crop',
   anniversary: 'https://images.unsplash.com/photo-1510076857177-7470076d4098?q=80&w=1200&auto=format&fit=crop',
 };

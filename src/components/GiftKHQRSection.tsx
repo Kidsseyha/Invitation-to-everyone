@@ -15,6 +15,7 @@ interface GiftKHQRSectionProps {
   primaryColor?: string;
   textColor?: string;
   theme?: ThemeMode;
+  eventType?: string;
 }
 
 export default function GiftKHQRSection({
@@ -28,7 +29,9 @@ export default function GiftKHQRSection({
   primaryColor = '#f5b80f',
   textColor = '#f5b80f',
   theme = 'dark',
+  eventType,
 }: GiftKHQRSectionProps) {
+  const isHousewarming = eventType === 'housewarming';
   const [currency, setCurrency] = useState<'USD' | 'KHR'>('USD');
   const [copied, setCopied] = useState(false);
 
@@ -53,12 +56,18 @@ export default function GiftKHQRSection({
   const accountNumber = bankInfo?.accountNumber || '002 458 912 (ABA Bank)';
 
   // Determine gift context label based on event
-  const giftContextLabelKh = singlePerson
+  const giftContextLabelKh = isHousewarming
+    ? 'ចំណងដៃឡើងគេហដ្ឋានថ្មី'
+    : singlePerson
     ? 'កាដូជូនពរ (Gift)'
     : groom.includes('ឡើង') || bride.includes('ឡើង')
     ? 'កាដូឡើងគេហដ្ឋានថ្មី'
     : 'ចំណងដៃ និងសេចក្តីជូនពរ';
-  const giftContextLabelEn = singlePerson ? 'Celebration Gift' : 'Gift & Best Wishes';
+  const giftContextLabelEn = isHousewarming
+    ? 'Housewarming Gift'
+    : singlePerson
+    ? 'Celebration Gift'
+    : 'Gift & Best Wishes';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(`${accountName} - ${accountNumber} (${bankName})`);
@@ -85,7 +94,17 @@ export default function GiftKHQRSection({
         transition={{ duration: 0.6 }}
         className="w-full max-w-2xl mx-auto"
       >
-        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${theme === 'light' ? 'bg-amber-100/60 border-amber-300/50' : 'bg-amber-950/40 border-amber-500/30'} border text-xs font-khmer mb-2`}>
+        <div
+          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-khmer mb-2 ${
+            isHousewarming
+              ? theme === 'light'
+                ? 'bg-emerald-900/10 border-emerald-700/30'
+                : 'bg-emerald-950/60 border-emerald-400/35'
+              : theme === 'light'
+              ? 'bg-amber-100/60 border-amber-300/50'
+              : 'bg-amber-950/40 border-amber-500/30'
+          }`}
+        >
           <HeartHandshake className="w-3.5 h-3.5" style={{ color: primaryColor }} />
           <span style={{ color: primaryColor }}>{language === 'kh' ? giftContextLabelKh : giftContextLabelEn}</span>
         </div>
@@ -99,9 +118,13 @@ export default function GiftKHQRSection({
 
         <p
           style={{ color: textColor }}
-          className={`text-xs font-khmer max-w-xs mx-auto mb-6 ${theme === 'light' ? 'opacity-75' : 'opacity-85'}`}
+          className={`text-xs font-khmer max-w-xs mx-auto mb-6 ${theme === 'light' ? 'opacity-80' : 'opacity-85'}`}
         >
-          {language === 'kh'
+          {isHousewarming
+            ? language === 'kh'
+              ? 'លោកអ្នកអាចចូលរួមចងដៃអបអរសាទរគេហដ្ឋានថ្មី តាមរយៈប្រព័ន្ធ KHQR គ្រប់ធនាគារក្នុងប្រទេសកម្ពុជា'
+              : 'You may send your housewarming blessings & gift conveniently via Bakong KHQR with any Cambodian bank'
+            : language === 'kh'
             ? 'លោកអ្នកអាចចូលរួមចងដៃគូស្វាមីភរិយាថ្មី តាមរយៈប្រព័ន្ធ KHQR គ្រប់ធនាគារក្នុងប្រទេសកម្ពុជា'
             : 'You may send your wedding blessings & gift conveniently via Bakong KHQR with any Cambodian bank'}
         </p>
@@ -131,7 +154,17 @@ export default function GiftKHQRSection({
         </div>
 
         {/* QR Code Presentation Card */}
-        <div className={`p-6 sm:p-8 rounded-3xl ${theme === 'light' ? 'bg-gradient-to-b from-amber-50 via-white to-amber-50 border-amber-300 shadow-[0_8px_30px_rgba(0,0,0,0.08)]' : 'bg-gradient-to-b from-amber-950/40 via-black/70 to-black/80 border-amber-500/50 shadow-2xl'} border-2 max-w-sm sm:max-w-md mx-auto transition-all`}>
+        <div
+          className={`p-6 sm:p-8 rounded-3xl border-2 max-w-sm sm:max-w-md mx-auto transition-all ${
+            isHousewarming
+              ? theme === 'light'
+                ? 'bg-gradient-to-b from-[#f3f7ef] via-white to-[#edf4e8] border-emerald-700/30 shadow-[0_8px_30px_rgba(16,59,42,0.1)]'
+                : 'bg-gradient-to-b from-[#08261c]/90 via-[#051a13]/95 to-[#04140e]/95 border-[#d4af37]/45 shadow-2xl'
+              : theme === 'light'
+              ? 'bg-gradient-to-b from-amber-50 via-white to-amber-50 border-amber-300 shadow-[0_8px_30px_rgba(0,0,0,0.08)]'
+              : 'bg-gradient-to-b from-amber-950/40 via-black/70 to-black/80 border-amber-500/50 shadow-2xl'
+          }`}
+        >
           {/* KHQR Header Banner */}
           <div className={`flex items-center justify-between pb-3.5 mb-4 border-b ${theme === 'light' ? 'border-amber-300/60' : 'border-amber-500/30'}`}>
             <div className="flex items-center gap-2">

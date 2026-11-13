@@ -13,6 +13,7 @@ interface LocationSectionProps {
   primaryColor?: string;
   textColor?: string;
   theme?: ThemeMode;
+  eventType?: string;
   onEditLocation?: () => void;
 }
 
@@ -25,9 +26,11 @@ export default function LocationSection({
   primaryColor = '#f5b80f',
   textColor = '#f5b80f',
   theme = 'dark',
+  eventType,
   onEditLocation,
 }: LocationSectionProps) {
   const [copied, setCopied] = useState(false);
+  const isHousewarming = eventType === 'housewarming';
 
   const displayLocation = language === 'kh' ? locationNameKh : locationNameEn;
 
@@ -46,9 +49,27 @@ export default function LocationSection({
         transition={{ duration: 0.6 }}
         className="w-full max-w-2xl mx-auto"
       >
-        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${theme === 'light' ? 'bg-amber-100/60 border-amber-300/50' : 'bg-amber-950/40 border-amber-500/30'} border text-xs font-khmer mb-2`}>
+        <div
+          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-khmer mb-2 ${
+            isHousewarming
+              ? theme === 'light'
+                ? 'bg-emerald-900/10 border-emerald-700/30'
+                : 'bg-emerald-950/60 border-emerald-400/35'
+              : theme === 'light'
+              ? 'bg-amber-100/60 border-amber-300/50'
+              : 'bg-amber-950/40 border-amber-500/30'
+          }`}
+        >
           <MapPin className="w-3.5 h-3.5" style={{ color: primaryColor }} />
-          <span style={{ color: primaryColor }}>{language === 'kh' ? 'ទីតាំងរៀបចំពិធី' : 'Wedding Venue'}</span>
+          <span style={{ color: primaryColor }}>
+            {isHousewarming
+              ? language === 'kh'
+                ? 'ទីតាំងគេហដ្ឋានថ្មី'
+                : 'Housewarming Venue'
+              : language === 'kh'
+              ? 'ទីតាំងរៀបចំពិធី'
+              : 'Wedding Venue'}
+          </span>
         </div>
 
         <h2
@@ -65,7 +86,7 @@ export default function LocationSection({
             onEditLocation
               ? 'cursor-pointer hover:bg-amber-400/10 active:scale-95 group'
               : ''
-          } ${theme === 'light' ? 'opacity-80 hover:opacity-100' : 'opacity-90 hover:opacity-100'}`}
+          } ${theme === 'light' ? 'opacity-85 hover:opacity-100' : 'opacity-90 hover:opacity-100'}`}
           title={onEditLocation ? (language === 'kh' ? 'ចុចដើម្បីកែប្រែទីតាំង / Click to edit location' : 'Click to edit location') : undefined}
         >
           <span>{displayLocation}</span>
@@ -75,7 +96,17 @@ export default function LocationSection({
         </p>
 
         {/* Venue Image / Map Preview with interactive frame */}
-        <div className={`relative rounded-2xl overflow-hidden border-2 ${theme === 'light' ? 'border-amber-300 shadow-[0_8px_30px_rgba(0,0,0,0.1)] bg-amber-50' : 'border-amber-500/40 shadow-xl shadow-black/40 bg-black/40'} group mb-6`}>
+        <div
+          className={`relative rounded-2xl overflow-hidden border-2 group mb-6 ${
+            isHousewarming
+              ? theme === 'light'
+                ? 'border-emerald-700/35 shadow-[0_8px_30px_rgba(16,59,42,0.12)] bg-[#f4f7f1]'
+                : 'border-[#d4af37]/45 shadow-xl shadow-black/50 bg-[#051b14]'
+              : theme === 'light'
+              ? 'border-amber-300 shadow-[0_8px_30px_rgba(0,0,0,0.1)] bg-amber-50'
+              : 'border-amber-500/40 shadow-xl shadow-black/40 bg-black/40'
+          }`}
+        >
           <img
             src={mapImageUrl}
             alt="Venue Map"
