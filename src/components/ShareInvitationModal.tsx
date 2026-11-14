@@ -6,7 +6,6 @@ import {
   Copy,
   Check,
   Send,
-  Globe,
   Sparkles,
   Link2,
   ExternalLink,
@@ -76,7 +75,6 @@ export default function ShareInvitationModal({
   const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'qrcode'>('single');
   const [targetGuest, setTargetGuest] = useState(guestName || '');
   const [copiedShort, setCopiedShort] = useState(false);
-  const [copiedFull, setCopiedFull] = useState(false);
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [shortUrl, setShortUrl] = useState<string>('');
   const [loadingShort, setLoadingShort] = useState<boolean>(false);
@@ -170,7 +168,6 @@ export default function ShareInvitationModal({
     if (!linkToCopy) return;
 
     const copySuccess = () => {
-      setCopiedFull(true);
       setCopiedShort(true);
       setCopyToast(
         language === 'kh'
@@ -178,7 +175,6 @@ export default function ShareInvitationModal({
           : `Copied invitation link for ${currentShareGuest}!`
       );
       setTimeout(() => {
-        setCopiedFull(false);
         setCopiedShort(false);
         setCopyToast(null);
       }, 2500);
@@ -212,10 +208,6 @@ export default function ShareInvitationModal({
 
   const handleCopyShortLink = () => {
     handleCopyLink(activeShareLink);
-  };
-
-  const handleCopyFullLink = () => {
-    handleCopyLink(fullUrl);
   };
 
   // Retrieve event information from selected category template and saved presets
@@ -619,104 +611,6 @@ Your presence will make our day truly special! 🙏✨`;
                             </option>
                           ))}
                         </select>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Primary Link Box (With Guest Name embedded in Link) */}
-                  <div className={`space-y-3 p-4 rounded-2xl border transition-all duration-300 shadow-sm hover:shadow-md hover:border-amber-400/80 ${
-                    isLight ? 'bg-amber-50/70 border-amber-300' : 'bg-black/55 border-amber-500/35'
-                  }`}>
-                    <div className="flex items-center justify-between flex-wrap gap-1.5">
-                      <label className={`text-xs font-semibold ${isLight ? 'text-amber-900' : 'text-amber-300'} font-khmer flex items-center gap-1.5`}>
-                        <Link2 className="w-4 h-4 text-amber-500 shrink-0" />
-                        <span>{language === 'kh' ? 'តំណភ្ជាប់សំបុត្រអញ្ជើញសម្រាប់ភ្ញៀវ (Personalized Guest Link):' : 'Personalized Guest Invitation Link:'}</span>
-                      </label>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`text-[10px] sm:text-[11px] ${isLight ? 'text-amber-800 bg-amber-200/70 border-amber-300' : 'text-amber-300 bg-amber-500/15 border-amber-400/30'} font-khmer px-2 py-0.5 rounded-full border`}>
-                          {language === 'kh' ? 'សម្រាប់ផ្ញើជូនភ្ញៀវ' : 'For Viewer'}
-                        </span>
-                        <span className={`text-[10px] sm:text-[11px] ${isLight ? 'text-emerald-700 bg-emerald-100 border-emerald-300' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'} font-khmer flex items-center gap-1 px-2 py-0.5 rounded-full border`}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>{language === 'kh' ? 'សាធារណៈ' : 'Public'}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Direct Personalized URL displaying full guest name parameter */}
-                    <div className="flex items-center gap-2">
-                      <div className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-mono truncate select-all flex items-center gap-1.5 shadow-inner ${
-                        isLight
-                          ? 'bg-white border-amber-300 text-amber-950'
-                          : 'bg-black/70 border-amber-500/30 text-amber-200'
-                      }`}>
-                        <Globe className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        <span className="truncate">{fullUrl}</span>
-                      </div>
-                      <a
-                        href={fullUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`px-3 py-2.5 rounded-xl border text-xs font-khmer font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
-                          isLight
-                            ? 'bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900 shadow-sm'
-                            : 'bg-amber-400/15 hover:bg-amber-400/25 border-amber-400/40 text-amber-200 shadow-sm'
-                        }`}
-                        title={language === 'kh' ? 'បើកមើលសាកល្បង' : 'Test Open'}
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="hidden sm:inline">{language === 'kh' ? 'បើក' : 'Open'}</span>
-                      </a>
-                      <button
-                        type="button"
-                        onClick={handleCopyFullLink}
-                        className={`px-3.5 py-2.5 rounded-xl text-xs font-khmer font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
-                          copiedFull
-                            ? 'bg-emerald-500 text-emerald-950 font-bold shadow-lg shadow-emerald-500/30'
-                            : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 shadow-md hover:shadow-lg'
-                        }`}
-                      >
-                        {copiedFull ? <Check className="w-4 h-4 stroke-[3]" /> : <Copy className="w-4 h-4" />}
-                        <span>
-                          {copiedFull
-                            ? language === 'kh'
-                              ? 'បានចម្លង!'
-                              : 'Copied!'
-                            : language === 'kh'
-                            ? 'ចម្លងលីង'
-                            : 'Copy'}
-                        </span>
-                      </button>
-                    </div>
-
-                    {/* Short Link Alternative */}
-                    {shortUrl && (
-                      <div className={`pt-2.5 border-t ${isLight ? 'border-amber-200' : 'border-white/5'} flex items-center justify-between text-[11px] gap-2`}>
-                        <div className="flex items-center gap-1.5 truncate">
-                          <span className={`${isLight ? 'text-amber-800 font-semibold' : 'text-amber-400/80 font-semibold'} font-khmer shrink-0`}>
-                            {language === 'kh' ? 'លីងខ្លី៖' : 'Short Link:'}
-                          </span>
-                          <span className={`${isLight ? 'text-amber-950 font-bold' : 'text-amber-300'} font-mono truncate`}>
-                            {shortUrl}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleCopyShortLink}
-                          className={`${isLight ? 'text-amber-800 hover:text-amber-950 bg-amber-100/70 hover:bg-amber-200' : 'text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/25'} px-2.5 py-1 rounded-lg border border-amber-400/30 font-khmer font-semibold flex items-center gap-1 transition-all shrink-0 cursor-pointer`}
-                        >
-                          {copiedShort ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-500" />
-                              <span className="text-emerald-600 font-bold">{language === 'kh' ? 'បានចម្លង!' : 'Copied!'}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>{language === 'kh' ? 'ចម្លងលីងខ្លី' : 'Copy Short Link'}</span>
-                            </>
-                          )}
-                        </button>
                       </div>
                     )}
                   </div>
