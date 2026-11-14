@@ -144,6 +144,14 @@ export default function App() {
             eventType: preset.type,
           });
         }
+
+        const customStored = localStorage.getItem('wedding_custom_event_data');
+        if (customStored) {
+          try {
+            const parsedCustom = JSON.parse(customStored);
+            return sanitizeWeddingEvent(parsedCustom);
+          } catch (e) {}
+        }
       }
 
       // 2. Otherwise check active template ID and type from localStorage
@@ -1291,6 +1299,7 @@ export default function App() {
           setEvent(sanitized);
           try {
             localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+            localStorage.setItem(`wedding_template_saved_${sanitized.id}`, JSON.stringify(sanitized));
           } catch (e) {
             // ignore
           }
@@ -1306,6 +1315,7 @@ export default function App() {
             setEvent(sanitized);
             try {
               localStorage.setItem('wedding_custom_event_data', JSON.stringify(sanitized));
+              localStorage.setItem(`wedding_template_saved_${sanitized.id}`, JSON.stringify(sanitized));
             } catch (e) {}
             return;
           }
