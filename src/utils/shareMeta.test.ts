@@ -5,7 +5,10 @@ import {
   buildInvitationMeta,
   injectMetaIntoHtml,
   parseFirestoreDocumentFields,
+  buildAllShareTemplates,
+  resolveSelectedShareTemplateId,
 } from './shareMeta';
+import { EVENT_PRESETS } from '../data/eventTemplates';
 
 test('resolveCategoryFromHints prioritizes explicit queryType and detects Khmer/English keywords', () => {
   assert.equal(
@@ -148,4 +151,108 @@ test('non-wedding categories ignore leaked wedding cover URLs and inject empty o
   const injected = injectMetaIntoHtml(html, meta);
   assert.ok(injected.includes(`<meta property="og:image" content="${origin}/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg" />`));
   assert.ok(injected.includes(`<meta name="twitter:image" content="${origin}/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg" />`));
+});
+
+test('buildAllShareTemplates preserves all All Templates presets, custom templates, and distinct wedding presets', () => {
+  const savedWedding = {
+    id: 'cmgrawhnk0003le0434762j7n',
+    templateId: 'preset-wedding',
+    eventType: 'wedding',
+    name: 'អាពាហ៍ពិពាហ៍ កែវ & ម៉ាលី',
+    groom: 'កែវ',
+    bride: 'ម៉ាលី',
+  };
+  const customEvt = {
+    id: 'custom-event-999',
+    templateId: 'custom-event-999',
+    eventType: 'birthday',
+    name: 'ខួបកំណើត សុជាតិ ៣០ឆ្នាំ',
+    groom: 'សុជាតិ',
+    bride: '',
+    date: '2026-11-30',
+    location: 'ភ្នំពេញ',
+    singlePerson: true,
+    cover_image: 'https://example.com/bday-custom.jpg',
+  };
+
+  const options = buildAllShareTemplates({
+    presets: EVENT_PRESETS,
+    deletedPresetIds: ['preset-engagement'],
+    savedEventsById: {
+      'cmgrawhnk0003le0434762j7n': savedWedding,
+    },
+    savedEventsByType: {
+      wedding: savedWedding,
+    },
+    customTemplates: [customEvt],
+  });
+
+  assert.equal(options.some((o) => o.templateId === 'preset-engagement'), false);
+  const tradWedding = options.find((o) => o.templateId === 'preset-wedding');
+  const modWedding = options.find((o) => o.templateId === 'preset-modern-wedding');
+  const anniv = options.find((o) => o.templateId === 'preset-anniversary');
+  const custom = options.find((o) => o.templateId === 'custom-event-999');
+
+  assert.ok(tradWedding && modWedding && anniv && custom);
+  assert.equal(tradWedding.event.name, 'អាពាហ៍ពិពាហ៍ កែវ & ម៉ាលី');
+  // Modern wedding must keep its own data instead of being overwritten by savedEventsByType['wedding']
+  assert.equal(modWedding.event.name, 'អាពាហ៍ពិពាហ៍បែបសម័យ ដារ៉ា​ & បុប្ផា');
+  assert.equal(anniv.category, 'anniversary');
+  assert.equal(custom.isCustom, true);
+  assert.equal(custom.coverImage, 'https://example.com/bday-custom.jpg');
+});
+
+test('resolveSelectedShareTemplateId picks matching preset or custom template from All Templates', () => {
+  const customEvt = {
+    id: 'custom-event-777',
+    eventType: 'housewarming',
+    name: 'ឡើងផ្ទះថ្មី វីរៈ',
+    groom: 'វីរៈ',
+  };
+  const options = buildAllShareTemplates({
+    presets: EVENT_PRESETS,
+    customTemplates: [customEvt],
+    currentEvent: {
+      id: 'event_auth_user_1',
+      templateId: 'preset-modern-wedding',
+      eventType: 'wedding',
+      name: 'អាពាហ៍ពិពាហ៍បែបសម័យ ដារ៉ា​ & បុប្ផា',
+    },
+  });
+
+  assert.equal(
+    resolveSelectedShareTemplateId({
+      options,
+      currentEvent: { id: 'event_auth_user_1', templateId: 'preset-modern-wedding' },
+    }),
+    'preset-modern-wedding'
+  );
+
+  assert.equal(
+    resolveSelectedShareTemplateId({
+      options,
+      currentEvent: customEvt,
+    }),
+    'custom-event-777'
+  );
+
+  assert.equal(
+    resolveSelectedShareTemplateId({
+      options,
+      queryType: 'anniversary',
+    }),
+    'preset-anniversary'
+  );
+});
+
+test('buildInvitationMeta resolves specific preset by eventId when category has multiple presets', () => {
+  const origin = 'https://invitationonline-six.vercel.app';
+  const meta = buildInvitationMeta({
+    eventId: 'modern-wedding-mw001',
+    queryType: 'wedding',
+    origin,
+  });
+  assert.equal(meta.category, 'wedding');
+  assert.ok(meta.title.includes('ដារ៉ា'));
+  assert.ok(meta.description.includes('Sofitel') || meta.description.includes('សូហ្វីតែល'));
 });

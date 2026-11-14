@@ -76,6 +76,16 @@ export default function EventTypeModal({
     }
     return [];
   });
+  const [customTemplates, setCustomTemplates] = useState<WeddingEvent[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('wedding_custom_templates');
+        const parsed = stored ? JSON.parse(stored) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {}
+    }
+    return [];
+  });
   const categoryScrollRef = useRef<HTMLDivElement>(null);
 
   const scrollCategories = (direction: 'left' | 'right') => {
@@ -244,6 +254,7 @@ export default function EventTypeModal({
     const categoryCover = getCategoryCoverImage(preset.type) || preset.coverImage;
     return {
       ...preset.sampleEvent,
+      templateId: preset.id,
       eventType: preset.type,
       image: categoryCover,
       singlePerson: preset.type === 'birthday' ? true : false,
@@ -257,19 +268,30 @@ export default function EventTypeModal({
 
   const handleApply = async (preset: EventTypePreset) => {
     const categoryCover = getCategoryCoverImage(preset.type) || preset.coverImage;
-    // Build fresh event data for the chosen template preset
-    const freshPresetEvent: WeddingEvent = {
-      ...preset.sampleEvent,
-      eventType: preset.type,
-      image: categoryCover,
-      singlePerson: preset.type === 'birthday' ? true : false,
-      config: {
-        ...preset.sampleEvent.config,
-        cover_background: categoryCover,
-        details_background: categoryCover,
-      },
-      updatedAt: new Date().toISOString(),
-    };
+    // Build fresh event data for the chosen template preset (or keep custom template fields)
+    const isCustomPreset = preset.id.startsWith('custom-event-');
+    const saved = getSavedTemplateData(preset.sampleEvent.id);
+    const freshPresetEvent: WeddingEvent = isCustomPreset
+      ? {
+          ...preset.sampleEvent,
+          templateId: preset.id,
+          eventType: preset.type,
+          updatedAt: new Date().toISOString(),
+        }
+      : {
+          ...preset.sampleEvent,
+          ...(saved ? {} : {}),
+          templateId: preset.id,
+          eventType: preset.type,
+          image: categoryCover,
+          singlePerson: preset.type === 'birthday' ? true : false,
+          config: {
+            ...preset.sampleEvent.config,
+            cover_background: categoryCover,
+            details_background: categoryCover,
+          },
+          updatedAt: new Date().toISOString(),
+        };
     
     // Set a loading/saving toast message
     setSuccessToast(
@@ -282,6 +304,7 @@ export default function EventTypeModal({
       localStorage.setItem('wedding_custom_event_data', JSON.stringify(freshPresetEvent));
       localStorage.setItem(`wedding_template_saved_${preset.sampleEvent.id}`, JSON.stringify(freshPresetEvent));
       localStorage.setItem('wedding_last_active_template_id', preset.sampleEvent.id);
+      localStorage.setItem('wedding_last_active_preset_id', preset.id);
       localStorage.setItem('wedding_last_template_type', preset.type);
     } catch (e) {}
 
@@ -319,17 +342,55 @@ export default function EventTypeModal({
 
   const handleCreateCustom = () => {
     const basePreset = EVENT_PRESETS.find((p) => p.type === customType) || EVENT_PRESETS[0];
+    const customId = `custom-event-${Date.now()}`;
+    const categoryCover = getCategoryCoverImage(customType) || basePreset.coverImage;
+    const resolvedName = customName || (language === 'kh' ? basePreset.titleKh : basePreset.titleEn);
+    const resolvedLocation = customLocation || basePreset.sampleEvent.location;
+    const resolvedDate = customDate || basePreset.sampleEvent.config?.invitation_kh?.date_time || '';
+
     const newEvent: WeddingEvent = {
       ...basePreset.sampleEvent,
-      id: `custom-event-${Date.now()}`,
-      name: customName || (language === 'kh' ? basePreset.titleKh : basePreset.titleEn),
+      id: customId,
+      templateId: customId,
+      eventType: customType,
+      name: resolvedName,
       groom: customHost1 || basePreset.sampleEvent.groom,
-      bride: customHost2 || basePreset.sampleEvent.bride,
-      location: customLocation || basePreset.sampleEvent.location,
+      bride: customType === 'birthday' ? (customHost2 || '') : (customHost2 || basePreset.sampleEvent.bride),
+      location: resolvedLocation,
+      locationEn: customLocation || basePreset.sampleEvent.locationEn,
       eating_time: customTime || basePreset.sampleEvent.eating_time,
+      date: resolvedDate,
       startTime: `${customDate}T17:00:00+07:00`,
+      image: categoryCover,
+      cover_image: categoryCover,
       singlePerson: customType === 'birthday' ? true : false,
+      config: {
+        ...basePreset.sampleEvent.config,
+        cover_background: categoryCover,
+        details_background: categoryCover,
+        invitation_kh: {
+          ...basePreset.sampleEvent.config.invitation_kh,
+          location: resolvedLocation,
+          date_time: resolvedDate || basePreset.sampleEvent.config.invitation_kh.date_time,
+        },
+        invitation_en: {
+          ...basePreset.sampleEvent.config.invitation_en,
+          location: customLocation || basePreset.sampleEvent.config.invitation_en.location,
+          date_time: resolvedDate || basePreset.sampleEvent.config.invitation_en.date_time,
+        },
+      },
+      updatedAt: new Date().toISOString(),
     };
+
+    const nextCustomTemplates = [newEvent, ...customTemplates.filter((c) => c.id !== newEvent.id)];
+    setCustomTemplates(nextCustomTemplates);
+    try {
+      localStorage.setItem('wedding_custom_templates', JSON.stringify(nextCustomTemplates));
+      localStorage.setItem(`wedding_template_saved_${newEvent.id}`, JSON.stringify(newEvent));
+      localStorage.setItem('wedding_last_active_template_id', newEvent.id);
+      localStorage.setItem('wedding_last_active_preset_id', newEvent.id);
+      localStorage.setItem('wedding_last_template_type', customType);
+    } catch (e) {}
 
     onApplyTemplate(newEvent);
     setSuccessToast(
@@ -356,6 +417,14 @@ export default function EventTypeModal({
         console.warn('Error deleting template from backend:', e);
       }
 
+      if (presetId.startsWith('custom-event-')) {
+        const remainingCustom = customTemplates.filter((c) => c.id !== presetId && c.id !== sampleId);
+        setCustomTemplates(remainingCustom);
+        try {
+          localStorage.setItem('wedding_custom_templates', JSON.stringify(remainingCustom));
+        } catch (e) {}
+      }
+
       const nextDeleted = [...deletedPresetIds, presetId, sampleId];
       setDeletedPresetIds(nextDeleted);
       try {
@@ -379,9 +448,34 @@ export default function EventTypeModal({
     }
   };
 
-  const availablePresets = EVENT_PRESETS.filter(
-    (p) => !deletedPresetIds.includes(p.id) && !deletedPresetIds.includes(p.sampleEvent.id)
-  );
+  const customPresetItems: EventTypePreset[] = customTemplates
+    .filter((c) => c && c.id && !deletedPresetIds.includes(c.id))
+    .map((c) => {
+      const cat = c.eventType || 'wedding';
+      const basePreset = EVENT_PRESETS.find((p) => p.type === cat) || EVENT_PRESETS[0];
+      return {
+        id: c.id,
+        type: cat,
+        titleKh: c.name || basePreset.titleKh,
+        titleEn: c.name || basePreset.titleEn,
+        badgeKh: language === 'kh' ? `${basePreset.badgeKh} (ផ្ទាល់ខ្លួន)` : `${basePreset.badgeEn} (Custom)`,
+        badgeEn: `${basePreset.badgeEn} (Custom)`,
+        descriptionKh: basePreset.descriptionKh,
+        descriptionEn: basePreset.descriptionEn,
+        icon: basePreset.icon,
+        accentColor: basePreset.accentColor,
+        gradient: basePreset.gradient,
+        coverImage: c.cover_image || c.image || basePreset.coverImage,
+        sampleEvent: c,
+      };
+    });
+
+  const availablePresets = [
+    ...EVENT_PRESETS.filter(
+      (p) => !deletedPresetIds.includes(p.id) && !deletedPresetIds.includes(p.sampleEvent.id)
+    ),
+    ...customPresetItems,
+  ];
 
   const filteredPresets = filterType === 'all'
     ? availablePresets
@@ -504,7 +598,7 @@ export default function EventTypeModal({
                 }`}
               >
                 <Eye className="w-4 h-4" />
-                <span>{language === 'kh' ? `គំរូកម្មវិធីទាំងអស់ (${EVENT_PRESETS.length} គំរូ)` : `All ${EVENT_PRESETS.length} Event Templates`}</span>
+                <span>{language === 'kh' ? `គំរូកម្មវិធីទាំងអស់ (${availablePresets.length} គំរូ)` : `All ${availablePresets.length} Event Templates`}</span>
               </button>
 
               <button
@@ -976,9 +1070,17 @@ export default function EventTypeModal({
             ) : activeTab === 'presets' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {filteredPresets.map((preset, presetIdx) => {
-                  const exactMatch = currentEvent.id === preset.sampleEvent.id || currentEvent.id === preset.id;
-                  const hasAnyExactMatch = EVENT_PRESETS.some((p) => p.sampleEvent.id === currentEvent.id || p.id === currentEvent.id);
-                  const defaultMatch = !hasAnyExactMatch && preset.id === EVENT_PRESETS.find((p) => p.type === (currentEvent.eventType || 'wedding'))?.id;
+                  const exactMatch =
+                    currentEvent.templateId === preset.id ||
+                    currentEvent.id === preset.sampleEvent.id ||
+                    currentEvent.id === preset.id;
+                  const hasAnyExactMatch = availablePresets.some(
+                    (p) =>
+                      currentEvent.templateId === p.id ||
+                      currentEvent.id === p.sampleEvent.id ||
+                      currentEvent.id === p.id
+                  );
+                  const defaultMatch = !hasAnyExactMatch && preset.id === availablePresets.find((p) => p.type === (currentEvent.eventType || 'wedding'))?.id;
                   const isCurrent = exactMatch || defaultMatch;
 
                   return (
@@ -1237,6 +1339,8 @@ export default function EventTypeModal({
                           ? 'ពិធីភ្ជាប់ពាក្យ (Engagement)'
                           : customType === 'housewarming'
                           ? 'ពិធីឡើងផ្ទះថ្មី (Housewarming)'
+                          : customType === 'anniversary'
+                          ? 'ពិធីខួបអាពាហ៍ពិពាហ៍ (Anniversary)'
                           : 'ពិធីខួបកំណើត (Birthday)'}
                       </span>
                     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useMemo, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -24,21 +24,31 @@ import {
   Heart,
   Home,
   Cake,
+  Crown,
 } from 'lucide-react';
-import { Language } from '../types';
+import { Language, WeddingEvent } from '../types';
 import { ThemeMode } from './ThemeToggle';
 import { getPublicShareUrl, shortenUrl, PUBLIC_APP_URL } from '../lib/shareUrl';
 import { fetchGuestsFromFirebase, deleteGuestFromFirebase } from '../lib/firebaseGuests';
 import { GuestPreset } from '../data/guests';
-import { EVENT_PRESETS, EventTypePreset, getCategoryCoverImage } from '../data/eventTemplates';
-import { buildInvitationMeta } from '../utils/shareMeta';
+import { EVENT_PRESETS, getCategoryCoverImage } from '../data/eventTemplates';
+import {
+  buildAllShareTemplates,
+  buildInvitationMeta,
+  InvitationCategory,
+  readShareTemplatesStorageState,
+  resolveSelectedShareTemplateId,
+  ShareTemplateOption,
+} from '../utils/shareMeta';
 
 interface ShareInvitationModalProps {
   isOpen: boolean;
   onClose: () => void;
   guestName: string;
   onUpdateGuestName?: (newName: string) => void;
-  onSelectCategory?: (category: 'wedding' | 'engagement' | 'housewarming' | 'birthday') => void;
+  onSelectCategory?: (category: InvitationCategory) => void;
+  onSelectTemplate?: (eventData: WeddingEvent, category: InvitationCategory) => void;
+  currentEvent?: WeddingEvent;
   language: Language;
   eventId?: string;
   eventType?: string;
@@ -59,6 +69,8 @@ export default function ShareInvitationModal({
   guestName,
   onUpdateGuestName,
   onSelectCategory,
+  onSelectTemplate,
+  currentEvent,
   language,
   eventId = 'cmgrawhnk0003le0434762j7n',
   eventType,
@@ -81,29 +93,95 @@ export default function ShareInvitationModal({
   const [qrMode, setQrMode] = useState<'short' | 'direct'>('short');
   const [copyToast, setCopyToast] = useState<string | null>(null);
 
-  // Determine initial category from eventType, eventId, or eventName
-  const initialCategory = (() => {
-    const t = (eventType || '').toLowerCase();
-    const id = (eventId || '').toLowerCase();
-    const n = (eventName || '').toLowerCase();
-    if (t === 'birthday' || id.includes('birthday') || n.includes('ខួប') || n.includes('birthday')) return 'birthday';
-    if (t === 'housewarming' || id.includes('housewarming') || n.includes('ឡើងផ្ទះ') || n.includes('house')) return 'housewarming';
-    if (t === 'engagement' || id.includes('engagement') || n.includes('ភ្ជាប់ពាក្យ') || n.includes('engage')) return 'engagement';
-    return 'wedding';
-  })();
+  const fallbackCurrentEvent = useMemo(() => {
+    if (currentEvent) return currentEvent;
+    if (!eventId && !eventType && !eventName) return undefined;
+    return {
+      id: eventId,
+      eventType,
+      name: eventName,
+      singlePerson,
+      groom,
+      bride,
+      date: weddingDate,
+      location: locationName,
+      cover_image: coverImage,
+      image: coverImage,
+    };
+  }, [currentEvent, eventId, eventType, eventName, singlePerson, groom, bride, weddingDate, locationName, coverImage]);
 
-  const [selectedCategory, setSelectedCategory] = useState<'wedding' | 'engagement' | 'housewarming' | 'birthday'>(initialCategory);
+  const storageSnapshot = useMemo(() => {
+    return readShareTemplatesStorageState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, currentEvent]);
+
+  const allShareTemplates = useMemo(
+    () =>
+      buildAllShareTemplates({
+        presets: EVENT_PRESETS,
+        deletedPresetIds: storageSnapshot.deletedPresetIds,
+        savedEventsById: storageSnapshot.savedEventsById,
+        savedEventsByType: storageSnapshot.savedEventsByType,
+        customTemplates: storageSnapshot.customTemplates,
+        currentEvent: fallbackCurrentEvent,
+        lastActivePresetId: storageSnapshot.lastActivePresetId,
+      }),
+    [storageSnapshot, fallbackCurrentEvent]
+  );
+
+  const initialTemplateId = useMemo(
+    () =>
+      resolveSelectedShareTemplateId({
+        options: allShareTemplates,
+        currentEvent: fallbackCurrentEvent,
+        lastActivePresetId: storageSnapshot.lastActivePresetId,
+      }),
+    [allShareTemplates, fallbackCurrentEvent, storageSnapshot.lastActivePresetId]
+  );
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(initialTemplateId);
 
   useEffect(() => {
-    setSelectedCategory(initialCategory);
-  }, [initialCategory]);
+    if (isOpen) {
+      setSelectedTemplateId(initialTemplateId);
+    }
+  }, [isOpen, initialTemplateId]);
 
-  const activePreset: EventTypePreset = EVENT_PRESETS.find((p) => p.type === selectedCategory) || EVENT_PRESETS[0];
+  const selectedTemplate: ShareTemplateOption =
+    allShareTemplates.find((opt) => opt.templateId === selectedTemplateId) ||
+    allShareTemplates[0] || {
+      templateId: 'preset-wedding',
+      eventId: eventId || 'cmgrawhnk0003le0434762j7n',
+      category: 'wedding',
+      titleKh: 'មង្គលការបែបប្រពៃណី',
+      titleEn: 'Khmer Traditional Wedding',
+      badgeKh: 'មង្គលការ',
+      badgeEn: 'Wedding',
+      accentColor: '#f5b80f',
+      isCustom: false,
+      hasSavedData: false,
+      coverImage: coverImage || getCategoryCoverImage('wedding'),
+      dateKh: weddingDate,
+      dateEn: weddingDate,
+      locationKh: locationName,
+      locationEn: locationName,
+      event: fallbackCurrentEvent || EVENT_PRESETS[0].sampleEvent,
+    };
 
-  const handleCategoryChange = (newCat: 'wedding' | 'engagement' | 'housewarming' | 'birthday') => {
-    setSelectedCategory(newCat);
-    if (onSelectCategory) {
-      onSelectCategory(newCat);
+  const selectedCategory: InvitationCategory = selectedTemplate.category;
+  const selectedEventData = selectedTemplate.event;
+
+  const handleTemplateSelect = (opt: ShareTemplateOption) => {
+    setSelectedTemplateId(opt.templateId);
+    try {
+      localStorage.setItem('wedding_last_active_preset_id', opt.templateId);
+      localStorage.setItem('wedding_last_active_template_id', opt.eventId);
+      localStorage.setItem('wedding_last_template_type', opt.category);
+    } catch {}
+    if (onSelectTemplate) {
+      onSelectTemplate(opt.event as WeddingEvent, opt.category);
+    } else if (onSelectCategory) {
+      onSelectCategory(opt.category);
     }
   };
 
@@ -135,9 +213,11 @@ export default function ShareInvitationModal({
 
   const currentShareGuest = targetGuest.trim() || guestName || 'Your Name';
 
-  // Information retrieval from the selected category template
-  const isSameCategoryAsCurrent = selectedCategory === initialCategory;
-  const activeEventId = isSameCategoryAsCurrent ? (eventId || activePreset.sampleEvent.id) : activePreset.sampleEvent.id;
+  // Information retrieval from the selected template in All Templates
+  const isSameTemplateAsCurrent = selectedTemplate.templateId === initialTemplateId;
+  const activeEventId = isSameTemplateAsCurrent && fallbackCurrentEvent?.id
+    ? fallbackCurrentEvent.id
+    : selectedTemplate.eventId;
 
   const fullUrl = getPublicShareUrl(currentShareGuest, activeEventId, selectedCategory);
 
@@ -204,125 +284,66 @@ export default function ShareInvitationModal({
     }
   };
 
-  // Retrieve event information from selected category template and saved presets
-  const savedPresetData = typeof window !== 'undefined'
-    ? (() => {
-        try {
-          const s1 = localStorage.getItem(`wedding_template_saved_${activePreset.sampleEvent.id}`);
-          if (s1) return JSON.parse(s1);
-          const s2 = localStorage.getItem(`wedding_template_type_${selectedCategory}`);
-          if (s2) return JSON.parse(s2);
-        } catch {}
-        return null;
-      })()
-    : null;
-
-  const isWeddingCover = (url?: string) =>
-    Boolean(
-      url &&
-        (url.includes('491657278') ||
-          url.includes('white_arch_columns_wedding_cover') ||
-          url.includes('khmer_royal_gold_wedding_cover'))
-    );
-
-  const effectiveCoverImage =
-    isSameCategoryAsCurrent && coverImage && !(selectedCategory !== 'wedding' && isWeddingCover(coverImage))
-      ? coverImage
-      : savedPresetData?.cover_image ||
-        savedPresetData?.image ||
-        activePreset.coverImage ||
-        getCategoryCoverImage(selectedCategory);
+  // Retrieve full event information from the selected All Templates entry
+  const effectiveCoverImage = selectedTemplate.coverImage;
+  const selectedGroom = (selectedEventData?.groom || '').trim();
+  const selectedBride = (selectedEventData?.bride || '').trim();
+  const selectedSinglePerson = Boolean(selectedEventData?.singlePerson || selectedCategory === 'birthday');
 
   const displayHeaderKh = (() => {
-    if (isSameCategoryAsCurrent && eventName) {
-      if (selectedCategory === 'birthday' && groom) return `ពិធីខួបកំណើត ${groom}`;
-      if (selectedCategory === 'housewarming' && groom) return `ពិធីឡើងគេហដ្ឋានថ្មី ${groom}`;
-      if (selectedCategory === 'engagement' && groom && bride) return `ពិធីភ្ជាប់ពាក្យ ${groom} & ${bride}`;
-      return eventName;
-    }
-    if (savedPresetData?.name) return savedPresetData.name;
+    if (selectedEventData?.name) return selectedEventData.name;
     if (selectedCategory === 'birthday') {
-      const g = savedPresetData?.groom || activePreset.sampleEvent.groom || 'លោក កែវ ពិសិដ្ធ';
-      return `ពិធីខួបកំណើត ${g}`;
+      return selectedGroom ? `ពិធីខួបកំណើត ${selectedGroom}` : 'ពិធីខួបកំណើត';
     }
     if (selectedCategory === 'housewarming') {
-      const g = savedPresetData?.groom || activePreset.sampleEvent.groom || 'ម៉ៅ វិបុល';
-      return `ពិធីឡើងគេហដ្ឋានថ្មី ${g}`;
+      return selectedGroom ? `ពិធីឡើងគេហដ្ឋានថ្មី ${selectedGroom}` : 'ពិធីឡើងគេហដ្ឋានថ្មី';
     }
     if (selectedCategory === 'engagement') {
-      const g = savedPresetData?.groom || activePreset.sampleEvent.groom || 'គង់ វិសាល';
-      const b = savedPresetData?.bride || activePreset.sampleEvent.bride || 'ជា ស្រីពៅ';
-      return `ពិធីភ្ជាប់ពាក្យ ${g} & ${b}`;
+      return selectedGroom && selectedBride
+        ? `ពិធីភ្ជាប់ពាក្យ ${selectedGroom} & ${selectedBride}`
+        : 'ពិធីភ្ជាប់ពាក្យ';
     }
-    return activePreset.sampleEvent.name || `អាពាហ៍ពិពាហ៍ ${groom || 'រ៉ូ ម៉ាឡេ'} & ${bride || 'អួម វល្ខ័ក'}`;
+    if (selectedCategory === 'anniversary') {
+      return selectedGroom && selectedBride
+        ? `ខួបអាពាហ៍ពិពាហ៍ ${selectedGroom} & ${selectedBride}`
+        : 'ពិធីខួបអាពាហ៍ពិពាហ៍';
+    }
+    return selectedGroom && selectedBride
+      ? `អាពាហ៍ពិពាហ៍ ${selectedGroom} & ${selectedBride}`
+      : selectedTemplate.titleKh;
   })();
 
-  const displayHeaderEn = isSameCategoryAsCurrent && eventName
-    ? eventName
-    : (savedPresetData?.name || activePreset.titleEn || (
-        selectedCategory === 'birthday'
-          ? `Happy Birthday Celebration`
-          : selectedCategory === 'housewarming'
-          ? `Housewarming Celebration`
-          : selectedCategory === 'engagement'
-          ? `Engagement Ceremony`
-          : `Wedding Celebration`
-      ));
+  const displayHeaderEn = selectedTemplate.isCustom
+    ? (selectedEventData?.name || selectedTemplate.titleEn)
+    : selectedTemplate.titleEn;
 
-  const celebrationCelebrants = isSameCategoryAsCurrent && (groom || bride)
-    ? (selectedCategory === 'birthday'
-        ? `🎂 *${groom || eventName}*`
-        : selectedCategory === 'housewarming'
-        ? `🏡 *${groom || eventName}*`
-        : selectedCategory === 'engagement'
-        ? `💍 *${groom}* & 👰 *${bride}*`
-        : singlePerson
-        ? `🎉 *${groom}*`
-        : `🤵 *${groom}* & 👰 *${bride}*`)
-    : (savedPresetData?.groom
-        ? (selectedCategory === 'birthday'
-            ? `🎂 *${savedPresetData.groom}*`
-            : selectedCategory === 'housewarming'
-            ? `🏡 *${savedPresetData.groom}*`
-            : selectedCategory === 'engagement'
-            ? `💍 *${savedPresetData.groom}* & 👰 *${savedPresetData.bride || ''}*`
-            : `🤵 *${savedPresetData.groom}* & 👰 *${savedPresetData.bride || ''}*`)
-        : (selectedCategory === 'birthday'
-            ? `🎂 *${activePreset.sampleEvent.groom}*`
-            : selectedCategory === 'housewarming'
-            ? `🏡 *${activePreset.sampleEvent.groom}*`
-            : selectedCategory === 'engagement'
-            ? `💍 *${activePreset.sampleEvent.groom}* & 👰 *${activePreset.sampleEvent.bride}*`
-            : `🤵 *${activePreset.sampleEvent.groom}* & 👰 *${activePreset.sampleEvent.bride}*`));
+  const celebrationCelebrants = (() => {
+    if (selectedCategory === 'birthday') {
+      return `🎂 *${selectedGroom || displayHeaderKh}*`;
+    }
+    if (selectedCategory === 'housewarming') {
+      return selectedBride && selectedGroom
+        ? `🏡 *${selectedGroom}* & *${selectedBride}*`
+        : `🏡 *${selectedGroom || displayHeaderKh}*`;
+    }
+    if (selectedCategory === 'engagement') {
+      return `💍 *${selectedGroom}* & 👰 *${selectedBride}*`;
+    }
+    if (selectedCategory === 'anniversary') {
+      return `👑 *${selectedGroom}* & *${selectedBride}*`;
+    }
+    if (selectedSinglePerson) {
+      return `🎉 *${selectedGroom || displayHeaderKh}*`;
+    }
+    return `🤵 *${selectedGroom}* & 👰 *${selectedBride}*`;
+  })();
 
-  const effectiveDate = isSameCategoryAsCurrent && weddingDate
-    ? weddingDate
-    : (savedPresetData?.date || (activePreset.sampleEvent as any).date || activePreset.sampleEvent.schedules?.[0]?.shifts?.[0]?.date || activePreset.sampleEvent.schedules?.[0]?.shifts?.[0]?.name || 'ថ្ងៃសៅរ៍ ទី១២ ខែធ្នូ ឆ្នាំ២០២៦');
+  const effectiveDate = language === 'kh' ? selectedTemplate.dateKh : selectedTemplate.dateEn;
+  const effectiveLocation = language === 'kh' ? selectedTemplate.locationKh : selectedTemplate.locationEn;
 
-  const effectiveLocation = isSameCategoryAsCurrent && locationName
-    ? locationName
-    : (typeof savedPresetData?.location === 'string'
-        ? savedPresetData.location
-        : savedPresetData?.location?.name || (typeof activePreset.sampleEvent.location === 'string'
-            ? activePreset.sampleEvent.location
-            : (activePreset.sampleEvent.location as any)?.name || 'ភោជនីយដ្ឋាន សួនមនោរម្យ (កោះពេជ្រ)'));
-
-  // Sync browser <title> and Open Graph <meta> tags dynamically with the chosen category to share
+  // Sync browser <title> and Open Graph <meta> tags dynamically with the chosen template to share
   useEffect(() => {
     if (!isOpen || typeof document === 'undefined') return;
-    const categoryEvent = isSameCategoryAsCurrent
-      ? {
-          id: activeEventId,
-          eventType: selectedCategory,
-          name: eventName,
-          singlePerson,
-          groom,
-          bride,
-          date: effectiveDate,
-          location: effectiveLocation,
-          cover_image: effectiveCoverImage,
-        }
-      : savedPresetData || activePreset.sampleEvent;
 
     const origin =
       typeof window !== 'undefined' &&
@@ -333,7 +354,12 @@ export default function ShareInvitationModal({
         : PUBLIC_APP_URL;
 
     const meta = buildInvitationMeta({
-      event: categoryEvent,
+      event: {
+        ...selectedEventData,
+        id: activeEventId,
+        eventType: selectedCategory,
+        cover_image: effectiveCoverImage,
+      },
       guestName: currentShareGuest,
       queryType: selectedCategory,
       eventId: activeEventId,
@@ -363,15 +389,10 @@ export default function ShareInvitationModal({
     updateMetaTag('name', 'twitter:image', meta.image);
   }, [
     isOpen,
+    selectedTemplate,
     selectedCategory,
-    isSameCategoryAsCurrent,
+    selectedEventData,
     activeEventId,
-    eventName,
-    singlePerson,
-    groom,
-    bride,
-    effectiveDate,
-    effectiveLocation,
     effectiveCoverImage,
     currentShareGuest,
     fullUrl,
@@ -537,47 +558,56 @@ Your presence will make our day truly special! 🙏✨`;
               </p>
             </div>
 
-            {/* Event Category Selector Pill Bar */}
-            <div className="pt-2.5 pb-1 shrink-0">
-              <div className="flex items-center justify-between mb-1.5 px-0.5">
+            {/* All Templates Selector Pill Bar */}
+            <div className="pt-2.5 pb-1 shrink-0" data-testid="share-all-templates-selector">
+              <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
                 <span className={`text-[11px] font-khmer font-medium ${isLight ? 'text-amber-900/80' : 'text-amber-300/80'}`}>
-                  {language === 'kh' ? 'ប្រភេទកម្មវិធី (Event Category):' : 'Event Category:'}
+                  {language === 'kh' ? 'ជ្រើសរើសពីគំរូទាំងអស់ (All Templates):' : 'Select from All Templates:'}
                 </span>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                <span className={`text-[10px] font-khmer px-2 py-0.5 rounded-full border truncate max-w-[185px] ${
                   isLight ? 'bg-amber-100/90 border-amber-300 text-amber-950 font-bold' : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
                 }`}>
-                  {selectedCategory === 'wedding' ? (language === 'kh' ? 'អាពាហ៍ពិពាហ៍' : 'Wedding') :
-                   selectedCategory === 'engagement' ? (language === 'kh' ? 'ភ្ជាប់ពាក្យ' : 'Engagement') :
-                   selectedCategory === 'housewarming' ? (language === 'kh' ? 'ឡើងផ្ទះ' : 'Housewarming') :
-                   (language === 'kh' ? 'ខួបកំណើត' : 'Birthday')}
+                  {language === 'kh' ? selectedTemplate.titleKh : selectedTemplate.titleEn}
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[
-                  { id: 'wedding', labelKh: 'មង្គលការ', labelEn: 'Wedding', icon: Heart },
-                  { id: 'engagement', labelKh: 'ភ្ជាប់ពាក្យ', labelEn: 'Engage', icon: Sparkles },
-                  { id: 'housewarming', labelKh: 'ឡើងផ្ទះ', labelEn: 'House', icon: Home },
-                  { id: 'birthday', labelKh: 'ខួបកំណើត', labelEn: 'Birthday', icon: Cake },
-                ].map((cat) => {
-                  const Icon = cat.icon;
-                  const isSelected = selectedCategory === cat.id;
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-28 overflow-y-auto pr-0.5">
+                {allShareTemplates.map((tpl) => {
+                  const Icon =
+                    tpl.category === 'engagement'
+                      ? Sparkles
+                      : tpl.category === 'housewarming'
+                      ? Home
+                      : tpl.category === 'birthday'
+                      ? Cake
+                      : tpl.category === 'anniversary'
+                      ? Crown
+                      : tpl.templateId === 'preset-modern-wedding'
+                      ? Sparkles
+                      : Heart;
+                  const isSelected = selectedTemplate.templateId === tpl.templateId;
                   return (
                     <button
-                      key={cat.id}
+                      key={tpl.templateId}
                       type="button"
-                      onClick={() => handleCategoryChange(cat.id as any)}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-1 sm:px-2 rounded-xl text-xs font-khmer font-semibold transition-all border ${
+                      data-template-id={tpl.templateId}
+                      onClick={() => handleTemplateSelect(tpl)}
+                      title={language === 'kh' ? tpl.titleKh : tpl.titleEn}
+                      className={`flex items-center justify-start gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-khmer font-semibold transition-all border cursor-pointer ${
                         isSelected
                           ? isLight
                             ? 'bg-amber-500 text-neutral-950 border-amber-500 shadow font-bold'
                             : 'bg-amber-500/30 text-amber-200 border-amber-400/90 shadow-sm'
                           : isLight
-                          ? 'bg-amber-50/50 hover:bg-amber-100/70 border-amber-200 text-neutral-600'
-                          : 'bg-white/5 hover:bg-white/10 border-white/10 text-neutral-400'
+                          ? 'bg-amber-50/50 hover:bg-amber-100/70 border-amber-200 text-neutral-700'
+                          : 'bg-white/5 hover:bg-white/10 border-white/10 text-neutral-300'
                       }`}
                     >
                       <Icon className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{language === 'kh' ? cat.labelKh : cat.labelEn}</span>
+                      <span className="truncate">
+                        {language === 'kh'
+                          ? tpl.titleKh.replace(/\s*\([^)]*\)\s*/g, '').trim()
+                          : tpl.titleEn}
+                      </span>
                     </button>
                   );
                 })}
@@ -748,6 +778,10 @@ Your presence will make our day truly special! 🙏✨`;
                               ? 'Digital Housewarming Invitation'
                               : selectedCategory === 'birthday'
                               ? 'Digital Birthday Invitation'
+                              : selectedCategory === 'anniversary'
+                              ? 'Digital Anniversary Invitation'
+                              : selectedTemplate.templateId === 'preset-modern-wedding'
+                              ? 'Digital Modern Wedding Invitation'
                               : 'Digital Wedding Invitation'}
                           </span>
                           <h4 className="text-sm sm:text-base font-moul text-amber-100 drop-shadow-md leading-tight mt-1">

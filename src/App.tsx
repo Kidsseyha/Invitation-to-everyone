@@ -1608,6 +1608,7 @@ export default function App() {
     const preparedEvent: WeddingEvent = {
       ...updatedEvent,
       id: userEventId,
+      templateId: updatedEvent.templateId || updatedEvent.id,
       ownerId: authUser ? authUser.uid : updatedEvent.ownerId,
       ownerEmail: authUser ? (authUser.email || '') : updatedEvent.ownerEmail,
       eventType: validatedType,
@@ -1629,6 +1630,9 @@ export default function App() {
       if (preparedEvent.id) {
         localStorage.setItem(`wedding_template_saved_${preparedEvent.id}`, JSON.stringify(preparedEvent));
         localStorage.setItem('wedding_last_active_template_id', preparedEvent.id);
+      }
+      if (preparedEvent.templateId) {
+        localStorage.setItem('wedding_last_active_preset_id', preparedEvent.templateId);
       }
       if (validatedType) {
         localStorage.setItem(`wedding_template_type_${validatedType}`, JSON.stringify(preparedEvent));
@@ -2881,6 +2885,10 @@ export default function App() {
         guestName={guestName}
         isAdmin={isAdmin}
         onUpdateGuestName={newName => setGuestName(newName)}
+        currentEvent={event}
+        onSelectTemplate={(selectedEvent) => {
+          handleSaveEvent(selectedEvent, false);
+        }}
         onSelectCategory={cat => {
           const matchedPreset = EVENT_PRESETS.find(p => p.type === cat);
           if (matchedPreset) {
@@ -2901,7 +2909,11 @@ export default function App() {
         singlePerson={event.singlePerson}
         groom={event.groom}
         bride={event.bride}
-        weddingDate={event.date}
+        weddingDate={
+          event.date ||
+          (language === 'kh' ? event.config?.invitation_kh?.date_time : event.config?.invitation_en?.date_time) ||
+          event.config?.invitation_kh?.date_time
+        }
         locationName={typeof event.location === 'string' ? event.location : (event as any).location?.name}
         coverImage={event.cover_image || event.image || getCategoryCoverImage(event.eventType || event.id)}
         theme={theme}
