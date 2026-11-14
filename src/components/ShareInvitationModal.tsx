@@ -25,10 +25,14 @@ import {
   Home,
   Cake,
   Crown,
+  Globe,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Language, WeddingEvent } from '../types';
 import { ThemeMode } from './ThemeToggle';
-import { getPublicShareUrl, shortenUrl, PUBLIC_APP_URL } from '../lib/shareUrl';
+import { getPublicShareUrl, shortenUrl, PUBLIC_APP_URL, VERCEL_APP_URL } from '../lib/shareUrl';
 import { fetchGuestsFromFirebase, deleteGuestFromFirebase } from '../lib/firebaseGuests';
 import { GuestPreset } from '../data/guests';
 import { EVENT_PRESETS, getCategoryCoverImage } from '../data/eventTemplates';
@@ -88,10 +92,14 @@ export default function ShareInvitationModal({
   const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'qrcode'>('single');
   const [targetGuest, setTargetGuest] = useState(guestName || '');
   const [copiedMessage, setCopiedMessage] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [shortUrl, setShortUrl] = useState<string>('');
   const [loadingShort, setLoadingShort] = useState<boolean>(false);
   const [qrMode, setQrMode] = useState<'short' | 'direct'>('short');
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [shareDomain, setShareDomain] = useState<'vercel' | 'preview'>('vercel');
+  const [forceKhmerLang, setForceKhmerLang] = useState<boolean>(true);
+  const [showVercelGuide, setShowVercelGuide] = useState<boolean>(false);
 
   const fallbackCurrentEvent = useMemo(() => {
     if (currentEvent) return currentEvent;
@@ -219,13 +227,19 @@ export default function ShareInvitationModal({
     ? fallbackCurrentEvent.id
     : selectedTemplate.eventId;
 
-  const fullUrl = getPublicShareUrl(currentShareGuest, activeEventId, selectedCategory);
+  const selectedDomainOrigin = shareDomain === 'vercel' ? VERCEL_APP_URL : undefined;
+  const targetShareLang = forceKhmerLang ? 'kh' : (language === 'kh' ? 'kh' : 'en');
+
+  const fullUrl = getPublicShareUrl(currentShareGuest, activeEventId, selectedCategory, {
+    customOrigin: selectedDomainOrigin,
+    lang: targetShareLang,
+  });
 
   // Automatically fetch short URL whenever fullUrl changes
   useEffect(() => {
     let isMounted = true;
     setLoadingShort(true);
-    shortenUrl(fullUrl)
+    shortenUrl(fullUrl, selectedDomainOrigin)
       .then((res) => {
         if (isMounted) {
           setShortUrl(res);
@@ -238,7 +252,7 @@ export default function ShareInvitationModal({
     return () => {
       isMounted = false;
     };
-  }, [fullUrl]);
+  }, [fullUrl, selectedDomainOrigin]);
 
   const activeShareLink = shortUrl || fullUrl;
 
@@ -484,7 +498,10 @@ Your presence will make our day truly special! 🙏✨`;
   };
 
   const handleCopyBatchGuestLink = (name: string, index: number) => {
-    const url = getPublicShareUrl(name, activeEventId, selectedCategory);
+    const url = getPublicShareUrl(name, activeEventId, selectedCategory, {
+      customOrigin: selectedDomainOrigin,
+      lang: targetShareLang,
+    });
     handleCopyLink(url);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
@@ -795,23 +812,128 @@ Your presence will make our day truly special! 🙏✨`;
                     </div>
                   </div>
 
-                  {/* Pre-written Khmer Wedding Message Preview */}
-                  <div className={`p-3.5 rounded-2xl ${isLight ? 'bg-amber-50/50 border-amber-300' : 'bg-black/50 border-amber-500/25'} border space-y-2`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-semibold ${isLight ? 'text-amber-900' : 'text-amber-300'} font-khmer flex items-center gap-1.5`}>
-                        <MailOpen className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{language === 'kh' ? 'សារអញ្ជើញភ្ជាប់ជាមួយលីង (Ready Message):' : 'Invitation Message with Link:'}</span>
-                      </span>
+                  {/* Pre-written Khmer Wedding Message Preview & Vercel Support */}
+                  <div className={`p-3.5 rounded-2xl ${isLight ? 'bg-amber-50/50 border-amber-300' : 'bg-black/50 border-amber-500/25'} border space-y-2.5`}>
+                    {/* Domain Selector for Vercel vs AI Studio Preview */}
+                    <div className={`p-2 rounded-xl border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 ${
+                      isLight ? 'bg-amber-100/60 border-amber-300' : 'bg-black/60 border-amber-500/30'
+                    }`}>
+                      <div className="flex items-center gap-1.5 px-0.5">
+                        <Globe className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span className={`text-[11px] font-semibold font-khmer ${isLight ? 'text-amber-950' : 'text-amber-200'}`}>
+                          {language === 'kh' ? 'ដែនចែករំលែក (Share Domain):' : 'Share Domain:'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setShareDomain('vercel')}
+                          className={`flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-[10px] font-khmer font-bold transition-all border cursor-pointer ${
+                            shareDomain === 'vercel'
+                              ? isLight
+                                ? 'bg-amber-500 text-neutral-950 border-amber-500 shadow-sm'
+                                : 'bg-amber-500/30 text-amber-200 border-amber-400 shadow-sm'
+                              : isLight
+                              ? 'bg-white border-amber-200 text-neutral-600 hover:bg-amber-50'
+                              : 'bg-black/40 border-white/10 text-neutral-400 hover:text-neutral-200'
+                          }`}
+                        >
+                          ▲ Vercel (.vercel.app)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShareDomain('preview')}
+                          className={`flex-1 sm:flex-none px-2.5 py-1 rounded-lg text-[10px] font-khmer font-medium transition-all border cursor-pointer ${
+                            shareDomain === 'preview'
+                              ? isLight
+                                ? 'bg-amber-500 text-neutral-950 border-amber-500 shadow-sm'
+                                : 'bg-amber-500/30 text-amber-200 border-amber-400 shadow-sm'
+                              : isLight
+                              ? 'bg-white border-amber-200 text-neutral-600 hover:bg-amber-50'
+                              : 'bg-black/40 border-white/10 text-neutral-400 hover:text-neutral-200'
+                          }`}
+                        >
+                          AI Studio Preview
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Khmer Support Badge & Vercel Helper Trigger */}
+                    <div className={`flex items-center justify-between text-[11px] font-khmer px-2.5 py-1.5 rounded-xl border ${
+                      isLight ? 'bg-amber-50 border-amber-200/90 text-amber-900' : 'bg-amber-500/10 border-amber-500/25 text-amber-300'
+                    }`}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">🇰🇭</span>
+                        <span className="font-semibold">
+                          {language === 'kh' ? 'គាំទ្រភាសាខ្មែរលើ Vercel ១០០% (&lang=kh)' : '100% Khmer Language on Vercel (&lang=kh)'}
+                        </span>
+                      </div>
                       <button
                         type="button"
-                        onClick={handleCopyMessage}
-                        className={`text-[11px] ${isLight ? 'text-amber-700 hover:text-amber-900' : 'text-amber-400 hover:text-amber-200'} font-khmer font-semibold flex items-center gap-1`}
+                        onClick={() => setShowVercelGuide(!showVercelGuide)}
+                        className={`flex items-center gap-1 text-[10px] ${isLight ? 'text-amber-800' : 'text-amber-400'} hover:underline cursor-pointer font-bold`}
                       >
-                        {copiedMessage ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedMessage ? (language === 'kh' ? 'បានចម្លងសារ!' : 'Copied!') : (language === 'kh' ? 'ចម្លងសារទាំងមូល' : 'Copy All')}</span>
+                        <HelpCircle className="w-3 h-3" />
+                        <span>{language === 'kh' ? (showVercelGuide ? 'លាក់' : 'របៀបដំណើរការ?') : (showVercelGuide ? 'Hide' : 'How it works?')}</span>
+                        {showVercelGuide ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </button>
                     </div>
-                    <div className={`p-2.5 rounded-xl border text-[11px] sm:text-xs font-khmer leading-relaxed whitespace-pre-line max-h-32 overflow-y-auto select-all ${
+
+                    {/* Expandable Vercel Guide */}
+                    {showVercelGuide && (
+                      <div className={`p-2.5 rounded-xl border text-[11px] font-khmer space-y-1.5 leading-relaxed ${
+                        isLight ? 'bg-amber-50/90 border-amber-300 text-neutral-800' : 'bg-black/80 border-amber-500/30 text-neutral-300'
+                      }`}>
+                        <p className="font-bold text-amber-500 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <span>{language === 'kh' ? 'របៀបដែល Vercel បង្ហាញភាសាខ្មែរ និងរូបភាពក្របត្រឹមត្រូវ៖' : 'How Vercel renders Khmer language & cover images correctly:'}</span>
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1 text-[10.5px]">
+                          <li>
+                            <strong>{language === 'kh' ? 'ប៉ារ៉ាម៉ែត្រ &lang=kh' : '&lang=kh Parameter'}</strong>: {language === 'kh' ? 'ធានាថាភ្ញៀវពេលចុចលើលីង នឹងបើកឃើញផ្ទៃកម្មវិធីជាភាសាខ្មែរភ្លាមៗ។' : 'Guarantees the invitation opens immediately in Khmer.'}
+                          </li>
+                          <li>
+                            <strong>{language === 'kh' ? 'Vercel Serverless Function (/api/og.ts)' : 'Vercel Serverless Function'}</strong>: {language === 'kh' ? 'Telegram & Facebook crawlers នឹងទទួលបានចំណងជើងខ្មែរ រូបភាពក្រប និងព័ត៌មានជាក់ស្តែងពី Firestore ដោយស្វ័យប្រវត្តិ។' : 'Automatically generates dynamic Khmer Open Graph tags for Telegram, Facebook, and Messenger bots.'}
+                          </li>
+                          <li>
+                            <strong>{language === 'kh' ? 'UTF-8 Charset' : 'UTF-8 Encoding'}</strong>: {language === 'kh' ? 'អក្សរខ្មែរទាំងអស់ត្រូវបញ្ជូនជាមួយ Content-Type: text/html; charset=utf-8 មិនបែកអក្សរឡើយ។' : 'Serves text/html; charset=utf-8 to preserve all Khmer unicode characters.'}
+                          </li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Header and Actions */}
+                    <div className="flex items-center justify-between flex-wrap gap-1.5">
+                      <span className={`text-xs font-semibold ${isLight ? 'text-amber-900' : 'text-amber-300'} font-khmer flex items-center gap-1.5`}>
+                        <MailOpen className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span>{language === 'kh' ? 'សារអញ្ជើញភ្ជាប់ជាមួយលីង (Ready Message):' : 'Invitation Message with Link:'}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleCopyLink(activeShareLink);
+                            setCopiedLink(true);
+                            setTimeout(() => setCopiedLink(false), 2000);
+                          }}
+                          className={`text-[11px] ${isLight ? 'text-amber-800 hover:text-amber-950' : 'text-amber-400 hover:text-amber-200'} font-khmer font-semibold flex items-center gap-1 border border-amber-400/30 px-2 py-0.5 rounded-lg`}
+                        >
+                          {copiedLink ? <Check className="w-3 h-3 text-emerald-500" /> : <Link2 className="w-3 h-3" />}
+                          <span>{copiedLink ? (language === 'kh' ? 'បានចម្លងលីង!' : 'Copied Link!') : (language === 'kh' ? 'ចម្លងតែលីង' : 'Copy Link')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCopyMessage}
+                          className={`text-[11px] ${isLight ? 'text-amber-900 hover:text-amber-950' : 'text-amber-300 hover:text-amber-100'} font-khmer font-bold flex items-center gap-1 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-lg`}
+                        >
+                          {copiedMessage ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedMessage ? (language === 'kh' ? 'បានចម្លងសារ!' : 'Copied!') : (language === 'kh' ? 'ចម្លងសារទាំងមូល' : 'Copy All')}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Pre-written Message Content Box */}
+                    <div className={`p-2.5 rounded-xl border text-[11px] sm:text-xs font-khmer leading-relaxed whitespace-pre-line max-h-36 overflow-y-auto select-all ${
                       isLight
                         ? 'bg-white border-amber-200 text-neutral-800'
                         : 'bg-black/70 border-amber-500/20 text-neutral-300'
@@ -1037,7 +1159,10 @@ Your presence will make our day truly special! 🙏✨`;
                               </thead>
                               <tbody className={`divide-y ${isLight ? 'divide-amber-200/50' : 'divide-white/5'}`}>
                                 {filteredNames.map((name, idx) => {
-                                  const guestLink = getPublicShareUrl(name, activeEventId, selectedCategory);
+                                  const guestLink = getPublicShareUrl(name, activeEventId, selectedCategory, {
+                                    customOrigin: selectedDomainOrigin,
+                                    lang: targetShareLang,
+                                  });
                                   return (
                                     <tr
                                       key={idx}

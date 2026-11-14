@@ -1020,7 +1020,7 @@ app.get('/s/:code', async (req, res) => {
     // If it's a social media bot, render rich Open Graph HTML so the telegram/facebook preview shows the selected category's title and cover image
     if (isSocialBot) {
       const indexPath = isProduction
-        ? path.join(process.cwd(), 'dist', 'index.html')
+        ? [path.join(process.cwd(), 'dist', 'app.html'), path.join(process.cwd(), 'dist', 'index.html')].find(p => fs.existsSync(p)) || path.join(process.cwd(), 'dist', 'index.html')
         : path.join(process.cwd(), 'index.html');
 
       if (fs.existsSync(indexPath)) {
@@ -1174,14 +1174,14 @@ async function startServer() {
       path.resolve(__dirname),
       path.resolve(__dirname, '..', 'dist'),
     ];
-    const distPath = possibleDistPaths.find(p => fs.existsSync(path.join(p, 'index.html'))) || path.join(process.cwd(), 'dist');
+    const distPath = possibleDistPaths.find(p => fs.existsSync(path.join(p, 'index.html')) || fs.existsSync(path.join(p, 'app.html'))) || path.join(process.cwd(), 'dist');
 
     app.use(express.static(distPath, { index: false }));
     app.get('*', async (req, res) => {
       if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'Endpoint not found' });
       }
-      const indexPath = path.join(distPath, 'index.html');
+      const indexPath = [path.join(distPath, 'app.html'), path.join(distPath, 'index.html')].find(p => fs.existsSync(p)) || path.join(distPath, 'index.html');
       if (fs.existsSync(indexPath)) {
         let html = fs.readFileSync(indexPath, 'utf-8');
         const guestName = (req.query.name || req.query.i || req.query.guest || req.query.to) as string;

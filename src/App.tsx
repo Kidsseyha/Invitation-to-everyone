@@ -86,7 +86,15 @@ import { KhmerCornerKbach, KhmerDividerKbach, ShapedTitleText } from './componen
 import { useWebSocket } from './lib/useWebSocket';
 
 export default function App() {
-  const [language, setLanguage] = useState<Language>('kh');
+  const [language, setLanguage] = useState<Language>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const l = p.get('lang') || p.get('l');
+      if (l === 'en') return 'en';
+      if (l === 'kh' || l === 'km') return 'kh';
+    }
+    return 'kh';
+  });
   const [hasOpenedEnvelope, setHasOpenedEnvelope] = useState(false);
   const [showEnvelopeModal, setShowEnvelopeModal] = useState(true);
   const [showRSVPModal, setShowRSVPModal] = useState(false);

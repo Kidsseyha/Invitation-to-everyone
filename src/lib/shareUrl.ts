@@ -1,14 +1,25 @@
 export const PUBLIC_APP_URL = 'https://ais-pre-oi572nxogafsw6nsowqaaj-935767504529.asia-southeast1.run.app';
+export const VERCEL_APP_URL = 'https://invitationonline-six.vercel.app';
+
+export interface ShareUrlOptions {
+  customOrigin?: string;
+  lang?: string;
+}
 
 /**
  * Generates the live working share URL for wedding guests.
  * Automatically converts internal dev URLs (ais-dev-) and localhost to publicly accessible preview URLs (ais-pre-)
- * so guests on any phone, Telegram, Facebook, or browser can open the link directly.
+ * or honors customOrigin (such as Vercel domain) and adds Khmer language support.
  */
-export function getPublicShareUrl(guestName?: string, eventId?: string, eventType?: string): string {
-  let origin = PUBLIC_APP_URL;
+export function getPublicShareUrl(
+  guestName?: string,
+  eventId?: string,
+  eventType?: string,
+  options?: ShareUrlOptions
+): string {
+  let origin = options?.customOrigin || PUBLIC_APP_URL;
 
-  if (typeof window !== 'undefined') {
+  if (!options?.customOrigin && typeof window !== 'undefined') {
     const currentOrigin = window.location.origin;
     // If running on a public custom domain or live host (and not localhost or internal dev)
     if (
@@ -35,6 +46,12 @@ export function getPublicShareUrl(guestName?: string, eventId?: string, eventTyp
     url.searchParams.set('type', eventType.trim());
   }
 
+  // Language parameter for 100% Khmer support across social networks and Vercel
+  const targetLang = options?.lang || 'kh';
+  if (targetLang) {
+    url.searchParams.set('lang', targetLang);
+  }
+
   url.searchParams.set('share', '1');
 
   if (guestName && guestName.trim() && guestName.trim() !== 'Your Name') {
@@ -52,19 +69,22 @@ const shortUrlCache = new Map<string, string>();
 /**
  * Converts a long URL to a short link (using in-app /s/:code)
  */
-export async function shortenUrl(longUrl: string): Promise<string> {
+export async function shortenUrl(longUrl: string, customOrigin?: string): Promise<string> {
   if (!longUrl) return '';
+
+  const fallbackOrigin = customOrigin || (longUrl.startsWith(VERCEL_APP_URL) ? VERCEL_APP_URL : PUBLIC_APP_URL);
 
   let cleanedUrl = longUrl;
   if (cleanedUrl.includes('localhost') || cleanedUrl.includes('127.0.0.1')) {
-    cleanedUrl = cleanedUrl.replace(/http:\/\/localhost:\d+/, PUBLIC_APP_URL).replace(/https:\/\/localhost:\d+/, PUBLIC_APP_URL);
+    cleanedUrl = cleanedUrl.replace(/http:\/\/localhost:\d+/, fallbackOrigin).replace(/https:\/\/localhost:\d+/, fallbackOrigin);
   }
   if (cleanedUrl.includes('ais-dev-')) {
     cleanedUrl = cleanedUrl.replace('ais-dev-', 'ais-pre-');
   }
 
-  if (shortUrlCache.has(cleanedUrl)) {
-    return shortUrlCache.get(cleanedUrl)!;
+  const cacheKey = `${fallbackOrigin}::${cleanedUrl}`;
+  if (shortUrlCache.has(cacheKey)) {
+    return shortUrlCache.get(cacheKey)!;
   }
 
   // Try server-side shortener endpoint
@@ -72,19 +92,19 @@ export async function shortenUrl(longUrl: string): Promise<string> {
     const res = await fetch('/api/shorten', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: cleanedUrl, origin: PUBLIC_APP_URL }),
+      body: JSON.stringify({ url: cleanedUrl, origin: fallbackOrigin }),
     });
     if (res.ok) {
       const data = await res.json();
       if (data.shortUrl) {
         let finalShortUrl = data.shortUrl;
         if (finalShortUrl.includes('localhost') || finalShortUrl.includes('127.0.0.1')) {
-          finalShortUrl = finalShortUrl.replace(/http:\/\/localhost:\d+/, PUBLIC_APP_URL).replace(/https:\/\/localhost:\d+/, PUBLIC_APP_URL);
+          finalShortUrl = finalShortUrl.replace(/http:\/\/localhost:\d+/, fallbackOrigin).replace(/https:\/\/localhost:\d+/, fallbackOrigin);
         }
         if (finalShortUrl.includes('ais-dev-')) {
           finalShortUrl = finalShortUrl.replace('ais-dev-', 'ais-pre-');
         }
-        shortUrlCache.set(cleanedUrl, finalShortUrl);
+        shortUrlCache.set(cacheKey, finalShortUrl);
         return finalShortUrl;
       }
     }

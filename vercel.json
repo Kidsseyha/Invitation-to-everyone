@@ -1,10 +1,10 @@
 {
-  "buildCommand": "vite build",
+  "buildCommand": "vite build && cp dist/index.html dist/app.html && rm -f dist/index.html",
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
     "api/og.ts": {
-      "includeFiles": "dist/**"
+      "includeFiles": "{dist/**,firebase-applet-config.json,public/**}"
     }
   },
   "rewrites": [

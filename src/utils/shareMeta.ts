@@ -662,21 +662,29 @@ export async function fetchEventFromFirestoreRest(options: {
   projectId: string;
   databaseId?: string;
   eventId: string;
+  apiKey?: string;
   timeoutMs?: number;
 }): Promise<Record<string, any> | null> {
-  const { projectId, databaseId = '(default)', eventId, timeoutMs = 2500 } = options;
+  const { projectId, databaseId = '(default)', eventId, apiKey, timeoutMs = 2500 } = options;
   if (!projectId || !eventId) return null;
 
   const dbSegment = databaseId || '(default)';
+  const keyParam = apiKey ? `?key=${encodeURIComponent(apiKey)}` : '';
   const endpoint = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
     projectId
-  )}/databases/${encodeURIComponent(dbSegment)}/documents/events/${encodeURIComponent(eventId)}`;
+  )}/databases/${encodeURIComponent(dbSegment)}/documents/events/${encodeURIComponent(eventId)}${keyParam}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(endpoint, { signal: controller.signal });
+    let res = await fetch(endpoint, { signal: controller.signal });
+    if (!res.ok && dbSegment !== '(default)') {
+      const fallbackEndpoint = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+        projectId
+      )}/databases/(default)/documents/events/${encodeURIComponent(eventId)}${keyParam}`;
+      res = await fetch(fallbackEndpoint, { signal: controller.signal });
+    }
     if (!res.ok) return null;
     const json = (await res.json()) as { fields?: Record<string, any> };
     if (!json || !json.fields) return null;
