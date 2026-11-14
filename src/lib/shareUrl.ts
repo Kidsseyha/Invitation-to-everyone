@@ -35,6 +35,8 @@ export function getPublicShareUrl(guestName?: string, eventId?: string, eventTyp
     url.searchParams.set('type', eventType.trim());
   }
 
+  url.searchParams.set('share', '1');
+
   if (guestName && guestName.trim() && guestName.trim() !== 'Your Name') {
     url.searchParams.set('name', guestName.trim());
   }

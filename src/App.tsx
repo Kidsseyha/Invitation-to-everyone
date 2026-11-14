@@ -1181,7 +1181,7 @@ export default function App() {
   const [isFromShareLink, setIsFromShareLink] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      return Boolean(params.get('name') || params.get('guest') || params.get('share'));
+      return Boolean(params.get('name') || params.get('i') || params.get('guest') || params.get('to') || params.get('share'));
     }
     return false;
   });
@@ -1285,6 +1285,9 @@ export default function App() {
         document.title = `${event.name || 'លិខិតអញ្ជើញឌីជីថល'} - សូមគោរពអញ្ជើញ ${foundGuest}`;
       } else {
         setGuestName('Your Name');
+        if (params.get('share')) {
+          setIsFromShareLink(true);
+        }
         document.title = event.name || 'លិខិតអញ្ជើញឌីជីថល';
       }
 
@@ -1911,8 +1914,8 @@ export default function App() {
       <div
         className="fixed right-2 sm:right-4 z-40 flex max-w-[calc(100vw-1rem)] top-[52px] sm:top-16 flex-row flex-wrap justify-end items-center gap-1.5 sm:flex-col sm:items-end sm:gap-2"
       >
-        {/* Admin and Auth Controls */}
-        {isAdmin ? (
+        {/* Admin and Auth Controls (hidden for shared link viewers so they only see Reload) */}
+        {!isViewer ? (
           <>
             {/* PlanEssential Event Template Manager & Creator Button */}
             <motion.button
@@ -2017,29 +2020,31 @@ export default function App() {
           </motion.button>
         ) : null}
 
-        {/* Share Button */}
-        <motion.button
-          id="share-btn"
-          onClick={() => {
-            handleSaveEvent(event, false);
-            setShowShareModal(true);
-          }}
-          onTap={() => {
-            handleSaveEvent(event, false);
-            setShowShareModal(true);
-          }}
-          whileHover={{ scale: 1.05, y: -2 }}
-          whileTap={{ scale: 0.94 }}
-          className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-400/80 bg-gradient-to-br from-black/95 via-black/95 to-black/95 text-amber-300 shadow-[0_6px_25px_rgba(245,158,11,0.3)] backdrop-blur-md hover:border-amber-300 hover:text-amber-100 hover:shadow-[0_8px_30px_rgba(245,158,11,0.55)] transition-all ring-2 ring-amber-400/50 cursor-pointer select-none"
-          title={language === 'kh' ? 'ចែករំលែកលិខិតអញ្ជើញ / Share Invitation' : 'Share Invitation'}
-        >
-          <div className="p-1 rounded-full bg-amber-400/15 group-hover:bg-amber-400/30 transition-colors">
-            <Share2 className="w-3.5 h-3.5 text-amber-300 group-hover:text-amber-200 transition-colors" />
-          </div>
-          <span className="text-xs sm:text-[14px] font-khmer font-bold text-amber-200 group-hover:text-white transition-colors whitespace-nowrap">
-            {language === 'kh' ? 'ចែករំលែក' : 'Share'}
-          </span>
-        </motion.button>
+        {/* Share Button (hidden for shared link viewers so they see Reload only) */}
+        {!isFromShareLink && (
+          <motion.button
+            id="share-btn"
+            onClick={() => {
+              handleSaveEvent(event, false);
+              setShowShareModal(true);
+            }}
+            onTap={() => {
+              handleSaveEvent(event, false);
+              setShowShareModal(true);
+            }}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.94 }}
+            className="group relative flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-400/80 bg-gradient-to-br from-black/95 via-black/95 to-black/95 text-amber-300 shadow-[0_6px_25px_rgba(245,158,11,0.3)] backdrop-blur-md hover:border-amber-300 hover:text-amber-100 hover:shadow-[0_8px_30px_rgba(245,158,11,0.55)] transition-all ring-2 ring-amber-400/50 cursor-pointer select-none"
+            title={language === 'kh' ? 'ចែករំលែកលិខិតអញ្ជើញ / Share Invitation' : 'Share Invitation'}
+          >
+            <div className="p-1 rounded-full bg-amber-400/15 group-hover:bg-amber-400/30 transition-colors">
+              <Share2 className="w-3.5 h-3.5 text-amber-300 group-hover:text-amber-200 transition-colors" />
+            </div>
+            <span className="text-xs sm:text-[14px] font-khmer font-bold text-amber-200 group-hover:text-white transition-colors whitespace-nowrap">
+              {language === 'kh' ? 'ចែករំលែក' : 'Share'}
+            </span>
+          </motion.button>
+        )}
 
         {/* Reload / Refresh Button */}
         <motion.button
@@ -2061,7 +2066,7 @@ export default function App() {
         </motion.button>
 
         {/* Manage Users Data Button for Owner (seyhayoeurn2017@gmail.com) & Admin */}
-        {(checkIsCurrentActorOwner() || checkIsCurrentActorAdmin() || isAdmin) && (
+        {!isViewer && (checkIsCurrentActorOwner() || checkIsCurrentActorAdmin() || isAdmin) && (
           <motion.button
             id="manage-users-data-btn"
             onClick={() => setShowAdminUsersModal(true)}
@@ -2104,7 +2109,7 @@ export default function App() {
         )}
 
         {/* Authenticated Google User Badge - With Dedicated Database indicator */}
-        {authUser && (
+        {!isViewer && authUser && (
           <div
             id="authenticated-user-badge"
             className="group relative flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-400/70 bg-gradient-to-r from-black/95 via-neutral-900/95 to-black/95 text-amber-200 text-xs shadow-[0_4px_22px_rgba(0,0,0,0.65)] backdrop-blur-md ring-1 ring-amber-400/40 hover:border-amber-300 transition-all duration-300 select-none"
@@ -2169,25 +2174,6 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Admin Quick Return Toggle when testing shared link */}
-        {isAdmin && isFromShareLink && (
-          <motion.button
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                const url = new URL(window.location.origin + window.location.pathname);
-                window.history.replaceState({}, '', url.toString());
-                setIsFromShareLink(false);
-              }
-            }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-full border border-amber-400/40 bg-black/85 text-amber-300 text-xs font-khmer shadow-lg backdrop-blur-md flex items-center gap-1.5"
-            title={language === 'kh' ? 'ត្រឡប់ទៅផ្ទាំង Admin / Return to Admin Mode' : 'Return to Admin Mode'}
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] sm:text-xs">{language === 'kh' ? 'ត្រឡប់ទៅ Admin' : 'Back to Admin'}</span>
-          </motion.button>
-        )}
       </div>
 
       {/* Floating Animations: Botanical Petals for Housewarming, Balloons for Birthday, Rings for Engagement, Butterflies for Wedding */}

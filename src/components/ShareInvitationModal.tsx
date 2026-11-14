@@ -396,9 +396,26 @@ Your presence will make our day truly special! 🙏✨`;
   const activeMessage = language === 'kh' ? weddingMessageKh : weddingMessageEn;
 
   const handleCopyMessage = () => {
-    navigator.clipboard.writeText(activeMessage);
-    setCopiedMessage(true);
-    setTimeout(() => setCopiedMessage(false), 2000);
+    const onCopied = () => {
+      setCopiedMessage(true);
+      setCopyToast(
+        language === 'kh'
+          ? `បានចម្លងសារអញ្ជើញ និងលីងសម្រាប់ ${currentShareGuest}!`
+          : `Copied invitation message & link for ${currentShareGuest}!`
+      );
+      setTimeout(() => {
+        setCopiedMessage(false);
+        setCopyToast(null);
+      }, 2500);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(activeMessage).then(onCopied).catch(() => {
+        fallbackCopyText(activeMessage, onCopied);
+      });
+    } else {
+      fallbackCopyText(activeMessage, onCopied);
+    }
   };
 
   const shareTelegram = () => {
