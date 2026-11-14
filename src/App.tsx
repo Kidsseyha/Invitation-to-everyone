@@ -52,6 +52,8 @@ import {
 import { WEDDING_EVENT } from './data/weddingData';
 import { sanitizeWeddingEvent, VERIFIED_WEDDING_COVER } from './utils/sanitizeEvent';
 import { findTemplatePreset, getCategoryCoverImage, VERIFIED_CATEGORY_COVERS, EVENT_PRESETS } from './data/eventTemplates';
+import { buildInvitationMeta, normalizeCategoryString } from './utils/shareMeta';
+import { PUBLIC_APP_URL } from './lib/shareUrl';
 import { Language, WeddingEvent } from './types';
 import { formatKhmerDate, formatEnDate } from './utils/khmerHelpers';
 import { testFirestoreConnection, auth, db } from './lib/firebase';
@@ -126,18 +128,24 @@ export default function App() {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         urlId = params.get('id');
-        urlType = params.get('type');
+        urlType = params.get('type') || params.get('category');
       }
 
       if (urlId || urlType) {
+        const explicitCat = normalizeCategoryString(urlType);
         const targetId = urlId || urlType!;
-        const storedTemplate = localStorage.getItem(`wedding_template_saved_${targetId}`);
+        const storedTemplate =
+          localStorage.getItem(`wedding_template_saved_${targetId}`) ||
+          (explicitCat ? localStorage.getItem(`wedding_template_type_${explicitCat}`) : null);
         if (storedTemplate) {
           const parsed = sanitizeWeddingEvent(JSON.parse(storedTemplate));
-          return parsed;
+          const parsedCat = normalizeCategoryString(parsed.eventType || parsed.id || parsed.name);
+          if (!explicitCat || !parsedCat || parsedCat === explicitCat) {
+            return parsed;
+          }
         }
 
-        const preset = findTemplatePreset(targetId);
+        const preset = (explicitCat ? findTemplatePreset(explicitCat) : null) || findTemplatePreset(targetId);
         if (preset) {
           return sanitizeWeddingEvent({
             ...preset.sampleEvent,
@@ -145,12 +153,14 @@ export default function App() {
           });
         }
 
-        const customStored = localStorage.getItem('wedding_custom_event_data');
-        if (customStored) {
-          try {
-            const parsedCustom = JSON.parse(customStored);
-            return sanitizeWeddingEvent(parsedCustom);
-          } catch (e) {}
+        if (!explicitCat) {
+          const customStored = localStorage.getItem('wedding_custom_event_data');
+          if (customStored) {
+            try {
+              const parsedCustom = JSON.parse(customStored);
+              return sanitizeWeddingEvent(parsedCustom);
+            } catch (e) {}
+          }
         }
       }
 
@@ -1252,7 +1262,7 @@ export default function App() {
       const guestParam = params.get('guest');
       const toParam = params.get('to');
       const urlIdParam = params.get('id');
-      const urlTypeParam = params.get('type');
+      const urlTypeParam = params.get('type') || params.get('category');
 
       const activeTemplateId = localStorage.getItem('wedding_last_active_template_id');
       let storedEventId: string | null = null;
@@ -1293,8 +1303,15 @@ export default function App() {
       testFirestoreConnection();
 
       // Subscribe to real-time event configuration changes from Firestore using the chosen template ID
+      const explicitUrlCat = normalizeCategoryString(urlTypeParam);
+      const isMatchingUrlCategory = (candidate: any) => {
+        if (!explicitUrlCat) return true;
+        const candidateCat = normalizeCategoryString(candidate?.eventType || candidate?.id || candidate?.name);
+        return !candidateCat || candidateCat === explicitUrlCat;
+      };
+
       const unsubscribeEvent = subscribeToEvent(fetchId, (fbEvent) => {
-        if (fbEvent) {
+        if (fbEvent && isMatchingUrlCategory(fbEvent)) {
           const sanitized = sanitizeWeddingEvent(fbEvent);
           setEvent(sanitized);
           try {
@@ -1310,7 +1327,7 @@ export default function App() {
       const fetchServerData = async () => {
         try {
           const fbEvent = await fetchEventFromFirebase(fetchId);
-          if (fbEvent) {
+          if (fbEvent && isMatchingUrlCategory(fbEvent)) {
             const sanitized = sanitizeWeddingEvent(fbEvent);
             setEvent(sanitized);
             try {
@@ -1341,7 +1358,7 @@ export default function App() {
         }
 
         // If neither Firestore nor server API had the event, load the template preset directly
-        const preset = findTemplatePreset(fetchId);
+        const preset = findTemplatePreset(urlTypeParam || fetchId) || findTemplatePreset(fetchId);
         if (preset) {
           let templateEvent = preset.sampleEvent;
           const storedTemplate = localStorage.getItem(`wedding_template_saved_${fetchId}`);
@@ -1373,41 +1390,27 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const eventType = ((event as any).eventType || '').toLowerCase();
-    const eventIdLower = (event.id || '').toLowerCase();
-    const eventNameLower = (event.name || '').toLowerCase();
+    const origin =
+      typeof window !== 'undefined' &&
+      window.location.origin &&
+      !window.location.origin.includes('localhost') &&
+      !window.location.origin.includes('127.0.0.1')
+        ? window.location.origin.replace('ais-dev-', 'ais-pre-')
+        : PUBLIC_APP_URL;
 
-    const isBday = eventType === 'birthday' || eventIdLower.includes('birthday') || eventNameLower.includes('ខួប') || eventNameLower.includes('birthday');
-    const isHouse = eventType === 'housewarming' || eventIdLower.includes('housewarming') || eventNameLower.includes('ឡើងផ្ទះ') || eventNameLower.includes('house');
-    const isEngage = eventType === 'engagement' || eventIdLower.includes('engagement') || eventNameLower.includes('ភ្ជាប់ពាក្យ') || eventNameLower.includes('engage');
+    const meta = buildInvitationMeta({
+      event,
+      guestName,
+      eventId: event.id,
+      origin,
+      pageUrl: typeof window !== 'undefined' ? window.location.href : origin,
+    });
 
-    const hostKhmerName = event.groom?.trim() || '';
-
-    let eventName = event.name;
-    if (isBday) {
-      // Direct information from ម្ចាស់ខួប (Host Name)
-      eventName = hostKhmerName ? `ពិធីខួបកំណើត ${hostKhmerName}` : (event.name || 'ពិធីខួបកំណើត');
-    } else if (isHouse) {
-      eventName = hostKhmerName ? `ពិធីឡើងគេហដ្ឋានថ្មី ${hostKhmerName}` : (event.name || 'ពិធីឡើងគេហដ្ឋានថ្មី');
-    } else if (isEngage) {
-      eventName = (event.groom && event.bride) ? `ពិធីភ្ជាប់ពាក្យ ${event.groom} & ${event.bride}` : (event.name || 'ពិធីភ្ជាប់ពាក្យ');
-    } else if (event.singlePerson) {
-      eventName = hostKhmerName ? `កម្មវិធី ${hostKhmerName}` : (event.name || 'លិខិតអញ្ជើញឌីជីថល');
-    } else if (event.groom && event.bride) {
-      eventName = `អាពាហ៍ពិពាហ៍ ${event.groom} & ${event.bride}`;
-    } else {
-      eventName = event.name || 'លិខិតអញ្ជើញឌីជីថល';
-    }
-
-    let displayTitle = eventName;
-    if (guestName && guestName !== 'Your Name') {
-      displayTitle = `${eventName} - សូមគោរពអញ្ជើញ ${guestName}`;
-    }
-
-    document.title = displayTitle;
+    document.title = meta.title;
 
     // Dynamically update document meta tags for shared preview & browser
     const updateMetaTag = (attr: string, key: string, content: string) => {
+      if (!content) return;
       let tag = document.querySelector(`meta[${attr}="${key}"]`);
       if (!tag) {
         tag = document.createElement('meta');
@@ -1417,38 +1420,14 @@ export default function App() {
       tag.setAttribute('content', content);
     };
 
-    const desc = `សូមគោរពអញ្ជើញ ${
-      guestName && guestName !== 'Your Name' ? guestName : 'ភ្ញៀវកិត្តិយស'
-    } ចូលរួមជាអធិបតី និងប្រសិទ្ធពរជ័យ ${
-      isBday
-        ? `ក្នុងពិធីខួបកំណើត ${event.groom || eventName}`
-        : isHouse
-        ? `ក្នុងពិធីឡើងគេហដ្ឋានថ្មី ${event.groom || eventName}`
-        : isEngage
-        ? `ក្នុងពិធីភ្ជាប់ពាក្យ ${event.groom} & ${event.bride}`
-        : event.groom && event.bride && !event.singlePerson
-        ? `ក្នុងពិធីមង្គលការរវាង ${event.groom} & ${event.bride}`
-        : event.groom
-        ? `ក្នុងកម្មវិធី ${event.groom}`
-        : ''
-    } នៅថ្ងៃទី ${event.date || ''}`;
-
-    let coverImg =
-      event.cover_image ||
-      event.image ||
-      event.config?.photo_gallary?.photo1;
-
-    if (!coverImg || (isBday && coverImg.includes('491657278')) || (isHouse && coverImg.includes('491657278'))) {
-      coverImg = getCategoryCoverImage(event.eventType || event.id);
-    }
-
-    updateMetaTag('name', 'description', desc);
-    updateMetaTag('property', 'og:title', displayTitle);
-    updateMetaTag('property', 'og:description', desc);
-    updateMetaTag('property', 'og:image', coverImg);
-    updateMetaTag('name', 'twitter:title', displayTitle);
-    updateMetaTag('name', 'twitter:description', desc);
-    updateMetaTag('name', 'twitter:image', coverImg);
+    updateMetaTag('name', 'description', meta.description);
+    updateMetaTag('property', 'og:title', meta.title);
+    updateMetaTag('property', 'og:description', meta.description);
+    updateMetaTag('property', 'og:image', meta.image);
+    updateMetaTag('property', 'og:url', meta.url);
+    updateMetaTag('name', 'twitter:title', meta.title);
+    updateMetaTag('name', 'twitter:description', meta.description);
+    updateMetaTag('name', 'twitter:image', meta.image);
   }, [event.name, event.groom, event.bride, event.singlePerson, event.date, event.image, event.cover_image, event.eventType, event.id, guestName, isFromShareLink]);
 
   const config = event.config;
@@ -2919,7 +2898,14 @@ export default function App() {
         onSelectCategory={cat => {
           const matchedPreset = EVENT_PRESETS.find(p => p.type === cat);
           if (matchedPreset) {
-            handleSaveEvent(matchedPreset.sampleEvent);
+            let nextEvent = matchedPreset.sampleEvent;
+            try {
+              const savedById = localStorage.getItem(`wedding_template_saved_${matchedPreset.sampleEvent.id}`);
+              const savedByType = localStorage.getItem(`wedding_template_type_${cat}`);
+              if (savedById) nextEvent = JSON.parse(savedById);
+              else if (savedByType) nextEvent = JSON.parse(savedByType);
+            } catch {}
+            handleSaveEvent(nextEvent, false);
           }
         }}
         language={language}

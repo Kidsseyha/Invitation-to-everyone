@@ -5,7 +5,7 @@ export const PUBLIC_APP_URL = 'https://ais-pre-oi572nxogafsw6nsowqaaj-9357675045
  * Automatically converts internal dev URLs (ais-dev-) and localhost to publicly accessible preview URLs (ais-pre-)
  * so guests on any phone, Telegram, Facebook, or browser can open the link directly.
  */
-export function getPublicShareUrl(guestName?: string, eventId?: string): string {
+export function getPublicShareUrl(guestName?: string, eventId?: string, eventType?: string): string {
   let origin = PUBLIC_APP_URL;
 
   if (typeof window !== 'undefined') {
@@ -29,6 +29,10 @@ export function getPublicShareUrl(guestName?: string, eventId?: string): string 
   // Append ID if customized or needed for the invitation type (ប្រភេទធៀប)
   if (eventId) {
     url.searchParams.set('id', eventId);
+  }
+
+  if (eventType && eventType.trim()) {
+    url.searchParams.set('type', eventType.trim());
   }
 
   if (guestName && guestName.trim() && guestName.trim() !== 'Your Name') {

@@ -31,6 +31,7 @@ import { getPublicShareUrl, shortenUrl, PUBLIC_APP_URL } from '../lib/shareUrl';
 import { fetchGuestsFromFirebase, deleteGuestFromFirebase } from '../lib/firebaseGuests';
 import { GuestPreset } from '../data/guests';
 import { EVENT_PRESETS, EventTypePreset, getCategoryCoverImage } from '../data/eventTemplates';
+import { buildInvitationMeta } from '../utils/shareMeta';
 
 interface ShareInvitationModalProps {
   isOpen: boolean;
@@ -139,7 +140,7 @@ export default function ShareInvitationModal({
   const isSameCategoryAsCurrent = selectedCategory === initialCategory;
   const activeEventId = isSameCategoryAsCurrent ? (eventId || activePreset.sampleEvent.id) : activePreset.sampleEvent.id;
 
-  const fullUrl = getPublicShareUrl(currentShareGuest, activeEventId);
+  const fullUrl = getPublicShareUrl(currentShareGuest, activeEventId, selectedCategory);
 
   // Automatically fetch short URL whenever fullUrl changes
   useEffect(() => {
@@ -301,6 +302,76 @@ export default function ShareInvitationModal({
             ? activePreset.sampleEvent.location
             : (activePreset.sampleEvent.location as any)?.name || 'ភោជនីយដ្ឋាន សួនមនោរម្យ (កោះពេជ្រ)'));
 
+  // Sync browser <title> and Open Graph <meta> tags dynamically with the chosen category to share
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+    const categoryEvent = isSameCategoryAsCurrent
+      ? {
+          id: activeEventId,
+          eventType: selectedCategory,
+          name: eventName,
+          singlePerson,
+          groom,
+          bride,
+          date: effectiveDate,
+          location: effectiveLocation,
+          cover_image: effectiveCoverImage,
+        }
+      : savedPresetData || activePreset.sampleEvent;
+
+    const origin =
+      typeof window !== 'undefined' &&
+      window.location.origin &&
+      !window.location.origin.includes('localhost') &&
+      !window.location.origin.includes('127.0.0.1')
+        ? window.location.origin.replace('ais-dev-', 'ais-pre-')
+        : PUBLIC_APP_URL;
+
+    const meta = buildInvitationMeta({
+      event: categoryEvent,
+      guestName: currentShareGuest,
+      queryType: selectedCategory,
+      eventId: activeEventId,
+      origin,
+      pageUrl: fullUrl,
+    });
+
+    document.title = meta.title;
+    const updateMetaTag = (attr: string, key: string, content: string) => {
+      if (!content) return;
+      let tag = document.querySelector(`meta[${attr}="${key}"]`);
+      if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute(attr, key);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute('content', content);
+    };
+
+    updateMetaTag('name', 'description', meta.description);
+    updateMetaTag('property', 'og:title', meta.title);
+    updateMetaTag('property', 'og:description', meta.description);
+    updateMetaTag('property', 'og:image', meta.image);
+    updateMetaTag('property', 'og:url', meta.url);
+    updateMetaTag('name', 'twitter:title', meta.title);
+    updateMetaTag('name', 'twitter:description', meta.description);
+    updateMetaTag('name', 'twitter:image', meta.image);
+  }, [
+    isOpen,
+    selectedCategory,
+    isSameCategoryAsCurrent,
+    activeEventId,
+    eventName,
+    singlePerson,
+    groom,
+    bride,
+    effectiveDate,
+    effectiveLocation,
+    effectiveCoverImage,
+    currentShareGuest,
+    fullUrl,
+  ]);
+
   const weddingMessageKh = `💌 *${displayHeaderKh}*
 
 សូមគោរពអញ្ជើញ៖ *${currentShareGuest}*
@@ -370,7 +441,7 @@ Your presence will make our day truly special! 🙏✨`;
   };
 
   const handleCopyBatchGuestLink = (name: string, index: number) => {
-    const url = getPublicShareUrl(name, activeEventId);
+    const url = getPublicShareUrl(name, activeEventId, selectedCategory);
     handleCopyLink(url);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
@@ -649,7 +720,13 @@ Your presence will make our day truly special! 🙏✨`;
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex flex-col justify-end p-3.5">
                           <span className="text-[10px] uppercase font-bold tracking-widest text-amber-300 drop-shadow flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                            Digital Wedding Invitation
+                            {selectedCategory === 'engagement'
+                              ? 'Digital Engagement Invitation'
+                              : selectedCategory === 'housewarming'
+                              ? 'Digital Housewarming Invitation'
+                              : selectedCategory === 'birthday'
+                              ? 'Digital Birthday Invitation'
+                              : 'Digital Wedding Invitation'}
                           </span>
                           <h4 className="text-sm sm:text-base font-moul text-amber-100 drop-shadow-md leading-tight mt-1">
                             {displayHeaderKh}
@@ -923,7 +1000,7 @@ Your presence will make our day truly special! 🙏✨`;
                               </thead>
                               <tbody className={`divide-y ${isLight ? 'divide-amber-200/50' : 'divide-white/5'}`}>
                                 {filteredNames.map((name, idx) => {
-                                  const guestLink = getPublicShareUrl(name, activeEventId);
+                                  const guestLink = getPublicShareUrl(name, activeEventId, selectedCategory);
                                   return (
                                     <tr
                                       key={idx}

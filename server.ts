@@ -4,7 +4,14 @@ import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import fs from 'fs';
 import dns from 'dns';
-import { findTemplatePreset, getCategoryCoverImage } from './src/data/eventTemplates';
+import { findTemplatePreset } from './src/data/eventTemplates';
+import {
+  buildInvitationMeta,
+  injectMetaIntoHtml,
+  fetchEventFromFirestoreRest,
+  normalizeCategoryString,
+} from './src/utils/shareMeta';
+import rawFirebaseConfig from './firebase-applet-config.json';
 
 // Guard against unhandled errors terminating process
 process.on('uncaughtException', err => {
@@ -130,7 +137,7 @@ const GUESTS_FILE = path.join(DATA_DIR, 'saved_guests.json');
 const SHORT_LINKS_FILE = path.join(DATA_DIR, 'saved_short_links.json');
 const SYSTEM_USERS_FILE = path.join(DATA_DIR, 'saved_system_users.json');
 const NOTIFICATIONS_FILE = path.join(DATA_DIR, 'saved_notifications.json');
-const PUBLIC_APP_URL = process.env.APP_URL || 'https://ais-pre-oi572nxogafsw6nsowqaaj-935767504529.asia-southeast1.run.app';
+const PUBLIC_APP_URL = (process.env.APP_URL || 'https://ais-pre-oi572nxogafsw6nsowqaaj-935767504529.asia-southeast1.run.app').replace('ais-dev-', 'ais-pre-');
 
 function getSavedNotifications(): any[] {
   try {
@@ -259,102 +266,102 @@ function saveShortLink(code: string, url: string) {
   }
 }
 
-function getInjectedHtml(html: string, guestName: string | null, event: any, eventId?: string): string {
-  const eventIdLower = (eventId || event?.id || '').toLowerCase();
-  const eventType = (event?.eventType || '').toLowerCase();
-  const eventNameLower = (event?.name || '').toLowerCase();
+async function resolveTargetEvent(options: {
+  eventId?: string | null;
+  eventType?: string | null;
+}): Promise<any> {
+  const eventId = (options.eventId || '').trim();
+  const eventType = normalizeCategoryString(options.eventType);
+  const events = getSavedEvents();
 
-  const isBday = eventType === 'birthday' || eventIdLower.includes('birthday') || eventNameLower.includes('ខួប') || eventNameLower.includes('birthday');
-  const isHouse = eventType === 'housewarming' || eventIdLower.includes('housewarming') || eventNameLower.includes('ឡើងផ្ទះ') || eventNameLower.includes('house');
-  const isEngage = eventType === 'engagement' || eventIdLower.includes('engagement') || eventNameLower.includes('ភ្ជាប់ពាក្យ') || eventNameLower.includes('engage');
+  let targetEvent: any = null;
 
-  const resolvedCategory = isBday ? 'birthday' : isHouse ? 'housewarming' : isEngage ? 'engagement' : 'wedding';
-
-  const hostKhmerName = event?.groom?.trim() || '';
-
-  const eventName =
-    (isBday
-      ? (hostKhmerName ? `ពិធីខួបកំណើត ${hostKhmerName}` : (event?.name || 'ពិធីខួបកំណើត'))
-      : isHouse
-      ? (hostKhmerName ? `ពិធីឡើងគេហដ្ឋានថ្មី ${hostKhmerName}` : (event?.name || 'ពិធីឡើងគេហដ្ឋានថ្មី'))
-      : isEngage
-      ? (event?.groom && event?.bride ? `ពិធីភ្ជាប់ពាក្យ ${event.groom} & ${event.bride}` : (event?.name || 'ពិធីភ្ជាប់ពាក្យ'))
-      : (event?.singlePerson
-        ? (hostKhmerName ? `កម្មវិធី ${hostKhmerName}` : (event?.name || 'លិខិតអញ្ជើញឌីជីថល'))
-        : (event?.groom && event?.bride
-        ? `អាពាហ៍ពិពាហ៍ ${event.groom} & ${event.bride}`
-        : (event?.name || 'លិខិតអញ្ជើញឌីជីថល')))) ||
-    'លិខិតអញ្ជើញឌីជីថល';
-
-  let title = eventName;
-  if (guestName && guestName !== 'Your Name') {
-    title = `${eventName} - សូមគោរពអញ្ជើញ ${guestName}`;
+  if (eventId && events[eventId]) {
+    targetEvent = events[eventId];
   }
 
-  let desc = `សូមគោរពអញ្ជើញ ${guestName || 'ភ្ញៀវកិត្តិយស'} ចូលរួមជាអធិបតី និងប្រសិទ្ធពរជ័យ`;
-  if (isBday) {
-    const milestone = event?.config?.anniversary_milestone || event?.anniversary_milestone;
-    desc += ` ក្នុងពិធីខួបកំណើត ${event?.groom || eventName}${milestone ? ` (${milestone})` : ''}`;
-  } else if (isHouse) {
-    desc += ` ក្នុងពិធីឡើងគេហដ្ឋានថ្មី ${event?.groom || eventName}`;
-  } else if (isEngage) {
-    desc += ` ក្នុងពិធីភ្ជាប់ពាក្យ ${event?.groom || ''} & ${event?.bride || ''}`;
-  } else if (event?.groom && event?.bride && !event?.singlePerson) {
-    desc += ` ក្នុងពិធីមង្គលការរវាង ${event.groom} & ${event.bride}`;
-  } else if (event?.groom) {
-    desc += ` ក្នុងកម្មវិធី ${event.groom}`;
+  if (!targetEvent && eventId) {
+    targetEvent = await fetchEventFromFirestoreRest({
+      projectId: rawFirebaseConfig.projectId,
+      databaseId: (rawFirebaseConfig as any).firestoreDatabaseId || '(default)',
+      eventId,
+    });
   }
 
-  if (event?.date) {
-    desc += ` នៅថ្ងៃទី ${event.date}`;
-  }
-  if (event?.location?.name) {
-    desc += ` ទីតាំង៖ ${event.location.name}`;
-  }
-
-  let coverImage =
-    event?.image ||
-    event?.cover_image ||
-    event?.config?.photo_gallary?.photo1;
-
-  if (
-    !coverImage ||
-    !coverImage.startsWith('http') ||
-    coverImage.startsWith('data:') ||
-    (resolvedCategory !== 'wedding' && coverImage.includes('491657278'))
-  ) {
-    coverImage = getCategoryCoverImage(resolvedCategory || eventIdLower);
-  }
-
-  let result = html;
-
-  if (result.includes('<title>')) {
-    result = result.replace(/<title>.*?<\/title>/i, `<title>${title}</title>`);
-  } else {
-    result = result.replace('</head>', `<title>${title}</title>\n</head>`);
-  }
-
-  const setMeta = (attr: string, key: string, content: string) => {
-    const escapedKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-    const regex = new RegExp(`<meta\\s+${attr}="${escapedKey}"\\s+content=".*?"\\s*\\/?>`, 'i');
-    if (regex.test(result)) {
-      result = result.replace(regex, `<meta ${attr}="${key}" content="${content}" />`);
-    } else {
-      result = result.replace('</head>', `  <meta ${attr}="${key}" content="${content}" />\n</head>`);
+  if (eventType) {
+    const loadedCat = targetEvent
+      ? normalizeCategoryString(targetEvent.eventType || targetEvent.id || targetEvent.name)
+      : null;
+    if (!targetEvent || (loadedCat && loadedCat !== eventType)) {
+      if (events[`type_${eventType}`]) {
+        targetEvent = events[`type_${eventType}`];
+      } else {
+        const matchByType = Object.values(events).find(
+          (e: any) => normalizeCategoryString(e?.eventType || e?.id || e?.name) === eventType
+        );
+        if (matchByType) {
+          targetEvent = matchByType;
+        } else {
+          const preset = findTemplatePreset(eventType);
+          if (preset) targetEvent = preset.sampleEvent;
+        }
+      }
     }
-  };
+  }
 
-  setMeta('name', 'description', desc);
-  setMeta('property', 'og:title', title);
-  setMeta('property', 'og:description', desc);
-  setMeta('property', 'og:image', coverImage);
-  setMeta('property', 'og:type', 'website');
-  setMeta('name', 'twitter:card', 'summary_large_image');
-  setMeta('name', 'twitter:title', title);
-  setMeta('name', 'twitter:description', desc);
-  setMeta('name', 'twitter:image', coverImage);
+  if (!targetEvent && eventId) {
+    if (events[`type_${eventId}`]) {
+      targetEvent = events[`type_${eventId}`];
+    } else {
+      const preset = findTemplatePreset(eventId);
+      if (preset) targetEvent = preset.sampleEvent;
+    }
+  }
 
-  return result;
+  if (!targetEvent) {
+    targetEvent = events['default'] || Object.values(events)[0] || findTemplatePreset('wedding')?.sampleEvent;
+  }
+
+  return targetEvent;
+}
+
+function getRequestPublicOrigin(req: express.Request): string {
+  const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || '';
+  const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+  if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
+    return PUBLIC_APP_URL;
+  }
+  const cleanHost = host.split(',')[0].trim();
+  const cleanProto = proto.split(',')[0].trim();
+  const origin = `${cleanProto}://${cleanHost}`;
+  return origin.includes('ais-dev-') ? origin.replace('ais-dev-', 'ais-pre-') : origin;
+}
+
+async function getInjectedHtmlAsync(
+  html: string,
+  options: {
+    guestName?: string | null;
+    eventId?: string | null;
+    eventType?: string | null;
+    origin: string;
+    pageUrl: string;
+  }
+): Promise<string> {
+  const targetEvent = await resolveTargetEvent({
+    eventId: options.eventId,
+    eventType: options.eventType,
+  });
+
+  const meta = buildInvitationMeta({
+    event: targetEvent,
+    guestName: options.guestName,
+    queryType: options.eventType,
+    eventId: options.eventId,
+    origin: options.origin,
+    pageUrl: options.pageUrl,
+  });
+
+  return injectMetaIntoHtml(html, meta);
 }
 
 function getSavedEvents(): Record<string, any> {
@@ -954,7 +961,7 @@ app.delete('/api/templates/:id', (req, res) => {
 });
 
     // In-app short link endpoint with full Open Graph metadata preview for Telegram, Facebook, Messenger
-app.get('/s/:code', (req, res, next) => {
+app.get('/s/:code', async (req, res) => {
   const code = req.params.code;
   const links = getShortLinks();
   const target = links[code];
@@ -993,45 +1000,39 @@ app.get('/s/:code', (req, res, next) => {
       userAgent.includes('discordbot') ||
       userAgent.includes('viber');
 
-    // Extract guest name and event ID from target URL if present
+    // Extract guest name, event ID, and category type from target URL if present
     let guestName: string | null = null;
     let eventId: string | null = null;
+    let eventType: string | null = null;
+    let targetOrigin = getRequestPublicOrigin(req);
     try {
       const parsed = new URL(cleanTarget);
       guestName = parsed.searchParams.get('name') || parsed.searchParams.get('i') || parsed.searchParams.get('guest') || parsed.searchParams.get('to');
-      eventId = parsed.searchParams.get('id') || parsed.searchParams.get('type');
-    } catch (e) {
+      eventId = parsed.searchParams.get('id');
+      eventType = parsed.searchParams.get('type') || parsed.searchParams.get('category');
+      if (parsed.origin && !parsed.origin.includes('localhost') && !parsed.origin.includes('127.0.0.1')) {
+        targetOrigin = parsed.origin;
+      }
+    } catch {
       // ignore
     }
 
     // If it's a social media bot, render rich Open Graph HTML so the telegram/facebook preview shows the selected category's title and cover image
     if (isSocialBot) {
-      const indexPath = process.env.NODE_ENV === 'production'
+      const indexPath = isProduction
         ? path.join(process.cwd(), 'dist', 'index.html')
         : path.join(process.cwd(), 'index.html');
 
       if (fs.existsSync(indexPath)) {
         let html = fs.readFileSync(indexPath, 'utf-8');
-        const events = getSavedEvents();
-        let targetEvent: any = null;
-        if (eventId) {
-          targetEvent = events[eventId] || events[`type_${eventId}`];
-          if (!targetEvent) {
-            const preset = findTemplatePreset(eventId);
-            if (preset) targetEvent = preset.sampleEvent;
-          }
-        }
-        if (!targetEvent) {
-          targetEvent = events['default'] || Object.values(events)[0];
-        }
-        if (!targetEvent && eventId) {
-          const preset = findTemplatePreset(eventId);
-          if (preset) targetEvent = preset.sampleEvent;
-        }
-
-        html = getInjectedHtml(html, guestName, targetEvent, eventId || undefined);
-        // Add direct client redirect for bots that execute JS
-        html = html.replace('</head>', `<meta http-equiv="refresh" content="0;url=${cleanTarget}" /></head>`);
+        html = await getInjectedHtmlAsync(html, {
+          guestName,
+          eventId,
+          eventType,
+          origin: targetOrigin,
+          pageUrl: cleanTarget,
+        });
+        html = html.replace('</head>', `<meta http-equiv="refresh" content="0;url=${cleanTarget.replace(/"/g, '&quot;')}" /></head>`);
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         return res.send(html);
       }
@@ -1149,26 +1150,17 @@ async function startServer() {
         template = await vite.transformIndexHtml(req.originalUrl, template);
 
         const guestName = (req.query.name || req.query.i || req.query.guest || req.query.to) as string;
-        const eventId = (req.query.id || req.query.type) as string;
-        const events = getSavedEvents();
+        const eventId = req.query.id as string;
+        const eventType = (req.query.type || req.query.category) as string;
+        const origin = getRequestPublicOrigin(req);
 
-        let targetEvent: any = null;
-        if (eventId) {
-          targetEvent = events[eventId] || events[`type_${eventId}`];
-          if (!targetEvent) {
-            const preset = findTemplatePreset(eventId);
-            if (preset) targetEvent = preset.sampleEvent;
-          }
-        }
-        if (!targetEvent) {
-          targetEvent = events['default'] || Object.values(events)[0];
-        }
-        if (!targetEvent && eventId) {
-          const preset = findTemplatePreset(eventId);
-          if (preset) targetEvent = preset.sampleEvent;
-        }
-
-        const html = getInjectedHtml(template, guestName, targetEvent, eventId);
+        const html = await getInjectedHtmlAsync(template, {
+          guestName,
+          eventId,
+          eventType,
+          origin,
+          pageUrl: `${origin}${req.originalUrl}`,
+        });
         res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(html);
       } catch (e: any) {
         vite.ssrFixStacktrace(e);
@@ -1185,7 +1177,7 @@ async function startServer() {
     const distPath = possibleDistPaths.find(p => fs.existsSync(path.join(p, 'index.html'))) || path.join(process.cwd(), 'dist');
 
     app.use(express.static(distPath, { index: false }));
-    app.get('*', (req, res) => {
+    app.get('*', async (req, res) => {
       if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'Endpoint not found' });
       }
@@ -1193,26 +1185,17 @@ async function startServer() {
       if (fs.existsSync(indexPath)) {
         let html = fs.readFileSync(indexPath, 'utf-8');
         const guestName = (req.query.name || req.query.i || req.query.guest || req.query.to) as string;
-        const eventId = (req.query.id || req.query.type) as string;
-        const events = getSavedEvents();
+        const eventId = req.query.id as string;
+        const eventType = (req.query.type || req.query.category) as string;
+        const origin = getRequestPublicOrigin(req);
 
-        let targetEvent: any = null;
-        if (eventId) {
-          targetEvent = events[eventId] || events[`type_${eventId}`];
-          if (!targetEvent) {
-            const preset = findTemplatePreset(eventId);
-            if (preset) targetEvent = preset.sampleEvent;
-          }
-        }
-        if (!targetEvent) {
-          targetEvent = events['default'] || Object.values(events)[0];
-        }
-        if (!targetEvent && eventId) {
-          const preset = findTemplatePreset(eventId);
-          if (preset) targetEvent = preset.sampleEvent;
-        }
-
-        html = getInjectedHtml(html, guestName, targetEvent, eventId);
+        html = await getInjectedHtmlAsync(html, {
+          guestName,
+          eventId,
+          eventType,
+          origin,
+          pageUrl: `${origin}${req.originalUrl}`,
+        });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         return res.send(html);
       }

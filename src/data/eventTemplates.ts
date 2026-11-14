@@ -428,7 +428,7 @@ export const EVENT_PRESETS: EventTypePreset[] = [
     icon: 'sparkles',
     accentColor: '#f43f5e',
     gradient: 'from-rose-500/20 via-pink-600/10 to-transparent',
-    coverImage: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=1200&auto=format&fit=crop',
+    coverImage: '/assets/aistudio/image_6e49a03a.png',
     sampleEvent: {
       id: 'engagement-cm001',
       eventType: 'engagement',
@@ -442,7 +442,7 @@ export const EVENT_PRESETS: EventTypePreset[] = [
       locationEn: 'Bride’s Residence (Borey Peng Huoth Boeung Snor)',
       eating_time: '11:30 AM',
       startTime: '2026-10-18T07:30:00+07:00',
-      image: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=1200&auto=format&fit=crop',
+      image: '/assets/aistudio/image_6e49a03a.png',
       schedules: [
         {
           id: 'sched-eng-1',
