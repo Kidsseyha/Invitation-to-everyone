@@ -105,57 +105,64 @@
     "updatedAt": "2026-11-14T02:48:58.546Z"
   },
   "default": {
-    "id": "housewarming-hm001",
-    "eventType": "housewarming",
-    "name": "ពិធីឡើងគេហដ្ឋានថ្មី ភារម្យ​ & ស្រីមុំ",
-    "slug": "ពិធីឡើងគេហដ្ឋានថ្មី-ភារម្យ-&-ស្រីមុំ",
-    "groom": "លោក សំ ភារម្យ",
-    "bride": "អ្នកស្រី កែវ ស្រីមុំ",
-    "groomEn": "Mr. Sam Phearom",
-    "brideEn": "Mrs. Keo Sreymom",
-    "location": "គេហដ្ឋានថ្មី (បុរី ជីបម៉ុង លែន ផ្លូវ៦០ម៉ែត្រ)",
-    "locationEn": "New Residence (Borey Chip Mong Land 60M Street)",
-    "eating_time": "05:30 PM",
-    "startTime": "2026-11-08T17:30:00+07:00",
-    "image": "/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg",
+    "id": "engagement-cm001",
+    "eventType": "engagement",
+    "name": "ពិធីភ្ជាប់ពាក្យ សុខា​ & ចិន្តា",
+    "slug": "ពិធីភ្ជាប់ពាក្យ-សុខា-&-ចិន្តា",
+    "groom": "ចាន់ សុខា",
+    "bride": "ហេង ចិន្តា",
+    "groomEn": "Chan Sokha",
+    "brideEn": "Heng Chenda",
+    "location": "គេហដ្ឋានខាងស្រី (បុរីប៉េងហួត បឹងស្នោ)",
+    "locationEn": "Bride’s Residence (Borey Peng Huoth Boeung Snor)",
+    "eating_time": "11:30 AM",
+    "startTime": "2026-10-18T07:30:00+07:00",
+    "image": "/assets/aistudio/image_6e49a03a.png",
     "schedules": [
       {
-        "id": "sched-hw-1",
-        "eventId": "housewarming-hm001",
+        "id": "sched-eng-1",
+        "eventId": "engagement-cm001",
         "shifts": [
           {
-            "id": "shift-hw-day1",
-            "name": "ថ្ងៃអាទិត្យ ទី០៨ ខែវិច្ឆិកា ឆ្នាំ២០២៦",
-            "nameEn": "Sunday, November 8, 2026",
-            "date": "2026-11-08",
+            "id": "shift-eng-day1",
+            "name": "ថ្ងៃអាទិត្យ ទី១៨ ខែតុលា ឆ្នាំ២០២៦",
+            "nameEn": "Sunday, October 18, 2026",
+            "date": "2026-10-18",
             "timeLine": [
               {
-                "id": "h1",
-                "time": "08:00 AM",
-                "name": "ជួបជុំសាច់ញាតិមិត្តភក្តិ ចូលគេហដ្ឋានថ្មីជាសិរីសួស្តី",
-                "nameEn": "Family & Guest Gathering at New Residence",
+                "id": "e1",
+                "time": "07:30 AM",
+                "name": "ជួបជុំភ្ញៀវកិត្តិយស និងរៀបចំក្បួនហែជំនូនភ្ជាប់ពាក្យ",
+                "nameEn": "Guest Gathering & Dowry Parade Preparation",
                 "icon": "users"
               },
               {
-                "id": "h2",
-                "time": "09:00 AM",
-                "name": "ពិធីនមស្សការព្រះរតនត្រ័យ និងសូត្រមន្តចម្រើនព្រះបរិត្តប្រោះព្រំគេហដ្ឋានថ្មី",
-                "nameEn": "Monks’ Blessing & Holy Water Cleansing Ritual",
-                "icon": "flame"
+                "id": "e2",
+                "time": "08:15 AM",
+                "name": "ពិធីហែជំនូនផ្លែឈើ និងគ្រឿងអលង្ការចូលគេហដ្ឋានខាងស្រី",
+                "nameEn": "Grand Engagement Fruit & Jewelry Dowry Procession",
+                "icon": "gift"
               },
               {
-                "id": "h3",
-                "time": "11:00 AM",
-                "name": "វេរភោជនាហារថ្វាយព្រះសង្ឃ និងពិសាអាហារថ្ងៃត្រង់ជុំគ្នា",
-                "nameEn": "Alms Offering to Monks & Family Luncheon",
+                "id": "e3",
+                "time": "09:30 AM",
+                "name": "ពិធីបំពាក់ចិញ្ចៀនភ្ជាប់ពាក្យ និងប្រគល់ខាន់ស្លា",
+                "nameEn": "Official Ring Exchange & Betrothal Ceremony",
+                "icon": "heart"
+              },
+              {
+                "id": "e4",
+                "time": "10:30 AM",
+                "name": "ថតរូបអនុស្សាវរីយ៍ជាមួយគូដណ្តឹង និងញាតិមិត្ត",
+                "nameEn": "Memorial Photo Session with Fiance & Families",
+                "icon": "camera"
+              },
+              {
+                "id": "e5",
+                "time": "11:30 AM",
+                "name": "ពិសារភោជនាហារថ្ងៃត្រង់សាមគ្គីអបអរពិធីភ្ជាប់ពាក្យ",
+                "nameEn": "Celebratory Engagement Luncheon",
                 "icon": "utensils"
-              },
-              {
-                "id": "h4",
-                "time": "05:30 PM",
-                "name": "ពិធីពិសារភោជនាហារពេលល្ងាច អបអរសាទរឡើងគេហដ្ឋានថ្មី",
-                "nameEn": "Grand Housewarming Evening Dinner Party",
-                "icon": "wine"
               }
             ]
           }
@@ -164,103 +171,112 @@
     ],
     "config": {
       "map_url": "https://maps.google.com",
-      "primaryColor": "#10b981",
-      "textColor": "#34d399",
+      "primaryColor": "#f43f5e",
+      "textColor": "#fb7185",
       "guestNameColor": "#364153",
-      "main_background": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg",
-      "cover_background": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg",
-      "details_background": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg",
+      "portrait_shape": "circle",
+      "main_background": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/free-background.jpg",
+      "cover_background": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/free-background.jpg",
+      "details_background": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/contents/cover-2.jpg",
       "background_music": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-2.mp3",
       "event_location": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/event/template/assets/1760584282359-vqmy8x-Maps.JPG",
       "photo_gallary": {
-        "photo1": "/assets/images/khmer_lotus_courtyard_1794537887190.jpg",
-        "photo2": "/assets/images/khmer_teak_interior_1794537887941.jpg",
-        "photo3": "/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg",
-        "photo4": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg"
+        "photo1": "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=600&auto=format&fit=crop",
+        "photo2": "https://images.unsplash.com/photo-1537633552985-df8429e8048b?q=80&w=600&auto=format&fit=crop",
+        "photo3": "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=600&auto=format&fit=crop",
+        "photo4": "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600&auto=format&fit=crop"
       },
-      "qr_code": "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=HOUSEWARMING_GIFT",
+      "qr_code": "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=ENGAGEMENT_GIFT",
       "bankInfo": {
-        "accountName": "SAM PHEAROM & KEO SREYMOM",
-        "accountNumber": "007 123 456 (ABA Bank)",
+        "accountName": "CHAN SOKHA & HENG CHENDA",
+        "accountNumber": "009 888 777 (ABA Bank)",
         "bankName": "ABA Bank"
       },
       "invitation_kh": {
-        "location": "គេហដ្ឋានថ្មី (បុរី ជីបម៉ុង លែន ផ្លូវ៦០ម៉ែត្រ)",
+        "location": "គេហដ្ឋានខាងស្រី (បុរីប៉េងហួត បឹងស្នោ)",
         "subtitle": "សូមគោរពអញ្ជើញ",
-        "date_time": "ថ្ងៃអាទិត្យ ទី០៨ ខែវិច្ឆិកា ឆ្នាំ២០២៦",
-        "main_title": "ពិធីឡើងគេហដ្ឋានថ្មី",
-        "details_title": "កម្មវិធីបុណ្យឡើងផ្ទះ",
-        "invitation_title": "លិខិតអញ្ជើញឡើងគេហដ្ឋានថ្មី",
-        "invitation_message": "វត្តមានដ៏ឧត្តុង្គឧត្តមរបស់លោកអ្នក នឹងនាំមកនូវសិរីសួស្តី ជោគជ័យ និងភាពកក់ក្តៅដល់គេហដ្ឋានថ្មីរបស់យើងខ្ញុំ។",
+        "date_time": "ថ្ងៃអាទិត្យ ទី១៨ ខែតុលា ឆ្នាំ២០២៦",
+        "main_title": "ពិធីភ្ជាប់ពាក្យសិរីមង្គល",
+        "details_title": "កម្មវិធីពិធីភ្ជាប់ពាក្យ",
+        "invitation_title": "លិខិតអញ្ជើញភ្ជាប់ពាក្យ",
+        "invitation_message": "សូមអញ្ជើញចូលរួមផ្តល់កិត្តិយស និងជូនពរជ័យដល់គូដណ្តឹងទាំងពីរក្នុងថ្ងៃវិសេសវិសាលនេះ។",
         "gratitude_title": "ថ្លែងអំណរគុណ",
-        "gratitude_message": "សូមអរគុណយ៉ាងជ្រាលជ្រៅចំពោះពរជ័យ និងវត្តមានដ៏មានតម្លៃរបស់លោកអ្នក។"
+        "gratitude_message": "យើងខ្ញុំសូមអរគុណយ៉ាងជ្រាលជ្រៅចំពោះវត្តមានដ៏ឧត្តុង្គឧត្តមរបស់លោកអ្នក។"
       },
       "invitation_en": {
-        "location": "New Residence (Borey Chip Mong Land 60M Street)",
-        "subtitle": "Warmly invite you to celebrate the joyous Housewarming blessing of our new home.",
-        "date_time": "Sunday, November 8, 2026",
-        "main_title": "Housewarming Blessing",
-        "details_title": "Event Schedule",
-        "invitation_title": "Housewarming Invitation",
-        "invitation_message": "Your presence brings joy, laughter, and blessings as we begin this new chapter in our home.",
-        "gratitude_title": "Thank You",
-        "gratitude_message": "Thank you for blessing our new home with your love and presence."
-      }
+        "location": "Bride’s Residence (Borey Peng Huoth Boeung Snor)",
+        "subtitle": "Warmly invite you to join us in witnessing and celebrating the Engagement Ceremony of Chan Sokha & Heng Chenda.",
+        "date_time": "Sunday, October 18, 2026",
+        "main_title": "Engagement Ceremony",
+        "details_title": "Engagement Schedule",
+        "invitation_title": "Engagement Invitation",
+        "invitation_message": "Your presence will make our betrothal celebration truly special and unforgettable.",
+        "gratitude_title": "Warm Gratitude",
+        "gratitude_message": "Thank you for celebrating this milestone and sending your warmest love and blessings."
+      },
+      "image": "/assets/aistudio/image_6e49a03a.png"
     },
-    "updatedAt": "2026-11-14T02:48:58.546Z"
+    "updatedAt": "2026-11-14T02:55:48.686Z"
   },
   "cmgrawhnk0003le0434762j7n": {
-    "id": "housewarming-hm001",
-    "eventType": "housewarming",
-    "name": "ពិធីឡើងគេហដ្ឋានថ្មី ភារម្យ​ & ស្រីមុំ",
-    "slug": "ពិធីឡើងគេហដ្ឋានថ្មី-ភារម្យ-&-ស្រីមុំ",
-    "groom": "លោក សំ ភារម្យ",
-    "bride": "អ្នកស្រី កែវ ស្រីមុំ",
-    "groomEn": "Mr. Sam Phearom",
-    "brideEn": "Mrs. Keo Sreymom",
-    "location": "គេហដ្ឋានថ្មី (បុរី ជីបម៉ុង លែន ផ្លូវ៦០ម៉ែត្រ)",
-    "locationEn": "New Residence (Borey Chip Mong Land 60M Street)",
-    "eating_time": "05:30 PM",
-    "startTime": "2026-11-08T17:30:00+07:00",
-    "image": "/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg",
+    "id": "engagement-cm001",
+    "eventType": "engagement",
+    "name": "ពិធីភ្ជាប់ពាក្យ សុខា​ & ចិន្តា",
+    "slug": "ពិធីភ្ជាប់ពាក្យ-សុខា-&-ចិន្តា",
+    "groom": "ចាន់ សុខា",
+    "bride": "ហេង ចិន្តា",
+    "groomEn": "Chan Sokha",
+    "brideEn": "Heng Chenda",
+    "location": "គេហដ្ឋានខាងស្រី (បុរីប៉េងហួត បឹងស្នោ)",
+    "locationEn": "Bride’s Residence (Borey Peng Huoth Boeung Snor)",
+    "eating_time": "11:30 AM",
+    "startTime": "2026-10-18T07:30:00+07:00",
+    "image": "/assets/aistudio/image_6e49a03a.png",
     "schedules": [
       {
-        "id": "sched-hw-1",
-        "eventId": "housewarming-hm001",
+        "id": "sched-eng-1",
+        "eventId": "engagement-cm001",
         "shifts": [
           {
-            "id": "shift-hw-day1",
-            "name": "ថ្ងៃអាទិត្យ ទី០៨ ខែវិច្ឆិកា ឆ្នាំ២០២៦",
-            "nameEn": "Sunday, November 8, 2026",
-            "date": "2026-11-08",
+            "id": "shift-eng-day1",
+            "name": "ថ្ងៃអាទិត្យ ទី១៨ ខែតុលា ឆ្នាំ២០២៦",
+            "nameEn": "Sunday, October 18, 2026",
+            "date": "2026-10-18",
             "timeLine": [
               {
-                "id": "h1",
-                "time": "08:00 AM",
-                "name": "ជួបជុំសាច់ញាតិមិត្តភក្តិ ចូលគេហដ្ឋានថ្មីជាសិរីសួស្តី",
-                "nameEn": "Family & Guest Gathering at New Residence",
+                "id": "e1",
+                "time": "07:30 AM",
+                "name": "ជួបជុំភ្ញៀវកិត្តិយស និងរៀបចំក្បួនហែជំនូនភ្ជាប់ពាក្យ",
+                "nameEn": "Guest Gathering & Dowry Parade Preparation",
                 "icon": "users"
               },
               {
-                "id": "h2",
-                "time": "09:00 AM",
-                "name": "ពិធីនមស្សការព្រះរតនត្រ័យ និងសូត្រមន្តចម្រើនព្រះបរិត្តប្រោះព្រំគេហដ្ឋានថ្មី",
-                "nameEn": "Monks’ Blessing & Holy Water Cleansing Ritual",
-                "icon": "flame"
+                "id": "e2",
+                "time": "08:15 AM",
+                "name": "ពិធីហែជំនូនផ្លែឈើ និងគ្រឿងអលង្ការចូលគេហដ្ឋានខាងស្រី",
+                "nameEn": "Grand Engagement Fruit & Jewelry Dowry Procession",
+                "icon": "gift"
               },
               {
-                "id": "h3",
-                "time": "11:00 AM",
-                "name": "វេរភោជនាហារថ្វាយព្រះសង្ឃ និងពិសាអាហារថ្ងៃត្រង់ជុំគ្នា",
-                "nameEn": "Alms Offering to Monks & Family Luncheon",
+                "id": "e3",
+                "time": "09:30 AM",
+                "name": "ពិធីបំពាក់ចិញ្ចៀនភ្ជាប់ពាក្យ និងប្រគល់ខាន់ស្លា",
+                "nameEn": "Official Ring Exchange & Betrothal Ceremony",
+                "icon": "heart"
+              },
+              {
+                "id": "e4",
+                "time": "10:30 AM",
+                "name": "ថតរូបអនុស្សាវរីយ៍ជាមួយគូដណ្តឹង និងញាតិមិត្ត",
+                "nameEn": "Memorial Photo Session with Fiance & Families",
+                "icon": "camera"
+              },
+              {
+                "id": "e5",
+                "time": "11:30 AM",
+                "name": "ពិសារភោជនាហារថ្ងៃត្រង់សាមគ្គីអបអរពិធីភ្ជាប់ពាក្យ",
+                "nameEn": "Celebratory Engagement Luncheon",
                 "icon": "utensils"
-              },
-              {
-                "id": "h4",
-                "time": "05:30 PM",
-                "name": "ពិធីពិសារភោជនាហារពេលល្ងាច អបអរសាទរឡើងគេហដ្ឋានថ្មី",
-                "nameEn": "Grand Housewarming Evening Dinner Party",
-                "icon": "wine"
               }
             ]
           }
@@ -269,50 +285,52 @@
     ],
     "config": {
       "map_url": "https://maps.google.com",
-      "primaryColor": "#10b981",
-      "textColor": "#34d399",
+      "primaryColor": "#f43f5e",
+      "textColor": "#fb7185",
       "guestNameColor": "#364153",
-      "main_background": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg",
-      "cover_background": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg",
-      "details_background": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg",
+      "portrait_shape": "circle",
+      "main_background": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/free-background.jpg",
+      "cover_background": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/free-background.jpg",
+      "details_background": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/free/template-1/contents/cover-2.jpg",
       "background_music": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/template/audio/audio-2.mp3",
       "event_location": "https://focuz-staging-space.sgp1.cdn.digitaloceanspaces.com/plan-essential/event/template/assets/1760584282359-vqmy8x-Maps.JPG",
       "photo_gallary": {
-        "photo1": "/assets/images/khmer_lotus_courtyard_1794537887190.jpg",
-        "photo2": "/assets/images/khmer_teak_interior_1794537887941.jpg",
-        "photo3": "/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg",
-        "photo4": "/assets/images/khmer_nature_housewarming_bg_1794537019312.jpg"
+        "photo1": "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=600&auto=format&fit=crop",
+        "photo2": "https://images.unsplash.com/photo-1537633552985-df8429e8048b?q=80&w=600&auto=format&fit=crop",
+        "photo3": "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=600&auto=format&fit=crop",
+        "photo4": "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=600&auto=format&fit=crop"
       },
-      "qr_code": "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=HOUSEWARMING_GIFT",
+      "qr_code": "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=ENGAGEMENT_GIFT",
       "bankInfo": {
-        "accountName": "SAM PHEAROM & KEO SREYMOM",
-        "accountNumber": "007 123 456 (ABA Bank)",
+        "accountName": "CHAN SOKHA & HENG CHENDA",
+        "accountNumber": "009 888 777 (ABA Bank)",
         "bankName": "ABA Bank"
       },
       "invitation_kh": {
-        "location": "គេហដ្ឋានថ្មី (បុរី ជីបម៉ុង លែន ផ្លូវ៦០ម៉ែត្រ)",
+        "location": "គេហដ្ឋានខាងស្រី (បុរីប៉េងហួត បឹងស្នោ)",
         "subtitle": "សូមគោរពអញ្ជើញ",
-        "date_time": "ថ្ងៃអាទិត្យ ទី០៨ ខែវិច្ឆិកា ឆ្នាំ២០២៦",
-        "main_title": "ពិធីឡើងគេហដ្ឋានថ្មី",
-        "details_title": "កម្មវិធីបុណ្យឡើងផ្ទះ",
-        "invitation_title": "លិខិតអញ្ជើញឡើងគេហដ្ឋានថ្មី",
-        "invitation_message": "វត្តមានដ៏ឧត្តុង្គឧត្តមរបស់លោកអ្នក នឹងនាំមកនូវសិរីសួស្តី ជោគជ័យ និងភាពកក់ក្តៅដល់គេហដ្ឋានថ្មីរបស់យើងខ្ញុំ។",
+        "date_time": "ថ្ងៃអាទិត្យ ទី១៨ ខែតុលា ឆ្នាំ២០២៦",
+        "main_title": "ពិធីភ្ជាប់ពាក្យសិរីមង្គល",
+        "details_title": "កម្មវិធីពិធីភ្ជាប់ពាក្យ",
+        "invitation_title": "លិខិតអញ្ជើញភ្ជាប់ពាក្យ",
+        "invitation_message": "សូមអញ្ជើញចូលរួមផ្តល់កិត្តិយស និងជូនពរជ័យដល់គូដណ្តឹងទាំងពីរក្នុងថ្ងៃវិសេសវិសាលនេះ។",
         "gratitude_title": "ថ្លែងអំណរគុណ",
-        "gratitude_message": "សូមអរគុណយ៉ាងជ្រាលជ្រៅចំពោះពរជ័យ និងវត្តមានដ៏មានតម្លៃរបស់លោកអ្នក។"
+        "gratitude_message": "យើងខ្ញុំសូមអរគុណយ៉ាងជ្រាលជ្រៅចំពោះវត្តមានដ៏ឧត្តុង្គឧត្តមរបស់លោកអ្នក។"
       },
       "invitation_en": {
-        "location": "New Residence (Borey Chip Mong Land 60M Street)",
-        "subtitle": "Warmly invite you to celebrate the joyous Housewarming blessing of our new home.",
-        "date_time": "Sunday, November 8, 2026",
-        "main_title": "Housewarming Blessing",
-        "details_title": "Event Schedule",
-        "invitation_title": "Housewarming Invitation",
-        "invitation_message": "Your presence brings joy, laughter, and blessings as we begin this new chapter in our home.",
-        "gratitude_title": "Thank You",
-        "gratitude_message": "Thank you for blessing our new home with your love and presence."
-      }
+        "location": "Bride’s Residence (Borey Peng Huoth Boeung Snor)",
+        "subtitle": "Warmly invite you to join us in witnessing and celebrating the Engagement Ceremony of Chan Sokha & Heng Chenda.",
+        "date_time": "Sunday, October 18, 2026",
+        "main_title": "Engagement Ceremony",
+        "details_title": "Engagement Schedule",
+        "invitation_title": "Engagement Invitation",
+        "invitation_message": "Your presence will make our betrothal celebration truly special and unforgettable.",
+        "gratitude_title": "Warm Gratitude",
+        "gratitude_message": "Thank you for celebrating this milestone and sending your warmest love and blessings."
+      },
+      "image": "/assets/aistudio/image_6e49a03a.png"
     },
-    "updatedAt": "2026-11-14T02:48:58.546Z"
+    "updatedAt": "2026-11-14T02:55:48.686Z"
   },
   "type_wedding": {
     "id": "cmgrawhnk0003le0434762j7n",
@@ -572,7 +590,7 @@
       },
       "image": "/assets/aistudio/image_6e49a03a.png"
     },
-    "updatedAt": "2026-11-14T02:48:55.729Z"
+    "updatedAt": "2026-11-14T02:55:48.686Z"
   },
   "type_engagement": {
     "id": "engagement-cm001",
@@ -686,7 +704,7 @@
       },
       "image": "/assets/aistudio/image_6e49a03a.png"
     },
-    "updatedAt": "2026-11-14T02:48:55.729Z"
+    "updatedAt": "2026-11-14T02:55:48.686Z"
   },
   "type_housewarming": {
     "id": "housewarming-hm001",

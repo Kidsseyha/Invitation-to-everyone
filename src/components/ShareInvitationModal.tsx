@@ -75,7 +75,6 @@ export default function ShareInvitationModal({
   const isLight = theme === 'light';
   const [activeTab, setActiveTab] = useState<'single' | 'batch' | 'qrcode'>('single');
   const [targetGuest, setTargetGuest] = useState(guestName || '');
-  const [copiedShort, setCopiedShort] = useState(false);
   const [copiedMessage, setCopiedMessage] = useState(false);
   const [shortUrl, setShortUrl] = useState<string>('');
   const [loadingShort, setLoadingShort] = useState<boolean>(false);
@@ -169,14 +168,12 @@ export default function ShareInvitationModal({
     if (!linkToCopy) return;
 
     const copySuccess = () => {
-      setCopiedShort(true);
       setCopyToast(
         language === 'kh'
           ? `បានចម្លងតំណភ្ជាប់សំបុត្រសម្រាប់ ${currentShareGuest}!`
           : `Copied invitation link for ${currentShareGuest}!`
       );
       setTimeout(() => {
-        setCopiedShort(false);
         setCopyToast(null);
       }, 2500);
     };
@@ -205,10 +202,6 @@ export default function ShareInvitationModal({
     } catch (e) {
       console.error('Fallback copy failed', e);
     }
-  };
-
-  const handleCopyShortLink = () => {
-    handleCopyLink(activeShareLink);
   };
 
   // Retrieve event information from selected category template and saved presets
@@ -735,25 +728,6 @@ Your presence will make our day truly special! 🙏✨`;
                             សូមគោរពអញ្ជើញ <span className="font-bold text-amber-300 underline underline-offset-2">{currentShareGuest}</span>
                           </p>
                         </div>
-                      </div>
-                      <div className={`p-2.5 ${isLight ? 'bg-amber-50/90 border-amber-200' : 'bg-[#121110] border-amber-500/20'} border-t flex items-center justify-between gap-2`}>
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-[11px] font-mono ${isLight ? 'text-amber-950 font-medium' : 'text-amber-300'} truncate select-all`}>
-                            {activeShareLink}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleCopyShortLink}
-                          className={`px-2.5 py-1.5 rounded-lg ${
-                            isLight
-                              ? 'bg-amber-200 hover:bg-amber-300 text-amber-950 border-amber-300 font-bold'
-                              : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30 font-bold'
-                          } border text-[11px] font-khmer flex items-center gap-1 shrink-0 transition-all cursor-pointer`}
-                        >
-                          {copiedShort ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                          <span>{copiedShort ? (language === 'kh' ? 'បានចម្លង!' : 'Copied!') : (language === 'kh' ? 'ចម្លងលីង' : 'Copy Link')}</span>
-                        </button>
                       </div>
                     </div>
                   </div>
