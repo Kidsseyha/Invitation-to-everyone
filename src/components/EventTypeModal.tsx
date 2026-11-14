@@ -34,7 +34,7 @@ import {
 import { Language, WeddingEvent } from '../types';
 import ThemeToggle, { ThemeMode } from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
-import { EVENT_PRESETS, EventTypePreset } from '../data/eventTemplates';
+import { EVENT_PRESETS, EventTypePreset, getCategoryCoverImage } from '../data/eventTemplates';
 import TemplateLivePreview from './TemplateLivePreview';
 import { deleteEventFromFirebase } from '../lib/firebaseServices';
 
@@ -241,19 +241,33 @@ export default function EventTypeModal({
       };
     }
 
+    const categoryCover = getCategoryCoverImage(preset.type) || preset.coverImage;
     return {
       ...preset.sampleEvent,
       eventType: preset.type,
+      image: categoryCover,
       singlePerson: preset.type === 'birthday' ? true : false,
+      config: {
+        ...preset.sampleEvent.config,
+        cover_background: categoryCover,
+        details_background: categoryCover,
+      },
     };
   };
 
   const handleApply = async (preset: EventTypePreset) => {
+    const categoryCover = getCategoryCoverImage(preset.type) || preset.coverImage;
     // Build fresh event data for the chosen template preset
     const freshPresetEvent: WeddingEvent = {
       ...preset.sampleEvent,
       eventType: preset.type,
+      image: categoryCover,
       singlePerson: preset.type === 'birthday' ? true : false,
+      config: {
+        ...preset.sampleEvent.config,
+        cover_background: categoryCover,
+        details_background: categoryCover,
+      },
       updatedAt: new Date().toISOString(),
     };
     

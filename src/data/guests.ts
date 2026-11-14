@@ -26,7 +26,7 @@ export const DEFAULT_GUEST_PRESETS: GuestPreset[] = [
   },
   {
     id: 'guest-3',
-    name: 'លោក ស្រី មករា',
+    name: 'លោក វ៉ាន់ សុខា',
     category: 'friends',
     categoryLabelKh: 'មិត្តភក្តិ (Friends)',
     categoryLabelEn: 'Friends',

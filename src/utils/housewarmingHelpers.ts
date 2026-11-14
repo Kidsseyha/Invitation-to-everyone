@@ -90,10 +90,22 @@ export function buildHousewarmingHostsDisplay(
   bride?: string,
   singlePerson?: boolean
 ): string {
-  const g = (groom || '').trim();
-  const b = (bride || '').trim();
+  let g = (groom || '').trim();
+  let b = (bride || '').trim();
+
+  if (g.includes('ពិធី') || g.includes('ខួប') || g.includes('រៀបការ')) {
+    const parts = g.split(/[:–—\-]/);
+    if (parts.length > 1) {
+      g = parts[parts.length - 1].trim();
+    }
+  }
+
   if (singlePerson) return g || b || 'ម្ចាស់គេហដ្ឋាន';
-  if (g && b) return `${g} & ${b}`;
+  if (g && b) {
+    if (g.toLowerCase() === b.toLowerCase() || g.toLowerCase().includes(b.toLowerCase())) return g;
+    if (b.toLowerCase().includes(g.toLowerCase())) return b;
+    return `${g} & ${b}`;
+  }
   return g || b || 'លោក សំ ភារម្យ & អ្នកស្រី កែវ ស្រីមុំ';
 }
 

@@ -1252,7 +1252,7 @@ export default function EnvelopeModal({
                         groomEn={groomEn}
                         brideEn={brideEn}
                         subtitleKh={subtitleKh}
-                        guestName={guestName && guestName !== 'Your Name' ? guestName : (language === 'kh' ? 'លោក ស្រី មករា' : 'Honored Guest')}
+                        guestName={guestName && guestName !== 'Your Name' ? guestName : (language === 'kh' ? 'លោក វ៉ាន់ សុខា' : 'Honored Guest')}
                         language={language}
                         onOpenInvitation={handleOpenInvitation}
                         isOpening={isOpening}

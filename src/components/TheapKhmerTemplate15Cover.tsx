@@ -65,7 +65,7 @@ export default function TheapKhmerTemplate15Cover({
   brideEn = 'Uom Volak',
   subtitleKh = 'សិរីសួស្តីអាពាហ៍ពិពាហ៍',
   subtitleEn = 'Wedding Celebration',
-  guestName = 'លោក ស្រី មករា',
+  guestName = 'លោក វ៉ាន់ សុខា',
   language = 'kh',
   isOpening = false,
   onOpenInvitation,
@@ -85,7 +85,7 @@ export default function TheapKhmerTemplate15Cover({
     guestName && guestName !== 'Your Name'
       ? guestName.trim()
       : language === 'kh'
-      ? 'លោក ស្រី មករា'
+      ? 'លោក វ៉ាន់ សុខា'
       : 'Honored Guest';
 
   const groomInit = getLatinInitial(groomEn, groom, 'R', false);
@@ -133,12 +133,11 @@ export default function TheapKhmerTemplate15Cover({
         className="relative z-[10] flex flex-col items-center w-full mt-2"
       >
         <h1
-          className="text-2xl sm:text-[28px] font-bold tracking-wide leading-[1.65] px-2"
+          className="font-bold tracking-wide px-2"
           style={{
-            fontFamily:
-              language === 'kh'
-                ? "'AKbalthom Kbach', 'AKbalthom-Kbach', 'Moulpali', 'Moul', serif"
-                : "'Playfair Display', Georgia, serif",
+            fontFamily: 'Moulpali, serif',
+            lineHeight: '62.2px',
+            fontSize: '32px',
             color: '#9c732d',
             textShadow: '0 1px 2px rgba(255,255,255,0.95)',
           }}
@@ -163,25 +162,6 @@ export default function TheapKhmerTemplate15Cover({
             draggable={false}
             className="w-full h-full object-contain select-none drop-shadow-[0_4px_10px_rgba(148,110,44,0.2)]"
           />
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-            style={{
-              fontFamily: "'Great Vibes', 'Playfair Display', Georgia, serif",
-              color: '#9c732d',
-              textShadow: '0 1px 1px rgba(255,255,255,0.9)',
-            }}
-          >
-            <span className="text-[28px] sm:text-[32px] italic font-semibold -translate-y-1.5 -translate-x-0.5">
-              {groomInit}
-            </span>
-            <span className="text-[19px] sm:text-[22px] italic font-medium mx-0.5 translate-y-0.5">
-              &amp;
-            </span>
-            <span className="text-[28px] sm:text-[32px] italic font-semibold translate-y-1.5 translate-x-0.5">
-              {brideInit}
-            </span>
-          </div>
         </div>
       </motion.div>
 
