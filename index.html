@@ -97,12 +97,12 @@
     <meta property="og:title" content="លិខិតអញ្ជើញឌីជីថល (Digital Invitation)" />
     <meta property="og:description" content="សូមគោរពអញ្ជើញភ្ញៀវកិត្តិយស - លិខិតអញ្ជើញកម្មវិធីសិរីមង្គលតាមប្រព័ន្ធឌីជីថល (Digital Invitation)" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/assets/images/white_arch_columns_wedding_cover_1790394461049.jpg" />
+    <meta property="og:image" content="" />
     <meta property="og:url" content="/" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="លិខិតអញ្ជើញឌីជីថល (Digital Invitation)" />
     <meta name="twitter:description" content="សូមគោរពអញ្ជើញភ្ញៀវកិត្តិយស - លិខិតអញ្ជើញកម្មវិធីសិរីមង្គលតាមប្រព័ន្ធឌីជីថល (Digital Invitation)" />
-    <meta name="twitter:image" content="/assets/images/white_arch_columns_wedding_cover_1790394461049.jpg" />
+    <meta name="twitter:image" content="" />
     <script>
       (function() {
         try {
@@ -161,12 +161,29 @@
             return null;
           }
 
+          function isWeddingCoverUrl(url) {
+            if (!url) return false;
+            return (
+              url.indexOf('491657278') !== -1 ||
+              url.indexOf('white_arch_columns_wedding_cover') !== -1 ||
+              url.indexOf('khmer_royal_gold_wedding_cover') !== -1
+            );
+          }
+
+          var detectedUrlCat = detectCategory(rawType) || detectCategory(id);
+          var lastStoredCat = '';
+          try { lastStoredCat = localStorage.getItem('wedding_last_template_type') || ''; } catch (e0) {}
+
           var storedEvent = null;
           try {
             var keys = [];
             if (id) keys.push('wedding_template_saved_' + id);
             if (rawType) keys.push('wedding_template_type_' + rawType);
-            if (!id && !rawType) keys.push('wedding_custom_event_data');
+            if (detectedUrlCat) keys.push('wedding_template_type_' + detectedUrlCat);
+            if (!id && !rawType) {
+              keys.push('wedding_custom_event_data');
+              if (lastStoredCat) keys.push('wedding_template_type_' + lastStoredCat);
+            }
             for (var k = 0; k < keys.length; k++) {
               var raw = localStorage.getItem(keys[k]);
               if (raw) {
@@ -181,7 +198,7 @@
             detectCategory(storedEvent && storedEvent.eventType) ||
             detectCategory(id) ||
             detectCategory(storedEvent && storedEvent.name) ||
-            detectCategory(localStorage.getItem('wedding_last_template_type')) ||
+            detectCategory(lastStoredCat) ||
             'wedding';
 
           var preset = CATEGORY_PRESETS[cat] || CATEGORY_PRESETS.wedding;
@@ -197,8 +214,8 @@
             else if (storedEvent.groom && storedEvent.bride && !storedEvent.singlePerson) baseTitle = 'អាពាហ៍ពិពាហ៍ ' + storedEvent.groom + ' & ' + storedEvent.bride;
             else if (storedEvent.name) baseTitle = storedEvent.name;
 
-            var candidateImg = storedEvent.cover_image || storedEvent.image;
-            if (candidateImg && candidateImg.indexOf('data:') !== 0 && !(cat !== 'wedding' && candidateImg.indexOf('491657278') !== -1)) {
+            var candidateImg = storedEvent.cover_image || storedEvent.image || (storedEvent.config && storedEvent.config.image);
+            if (candidateImg && candidateImg.indexOf('data:') !== 0 && !(cat !== 'wedding' && isWeddingCoverUrl(candidateImg))) {
               img = candidateImg;
             }
           }

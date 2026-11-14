@@ -217,9 +217,21 @@ export default function ShareInvitationModal({
       })()
     : null;
 
-  const effectiveCoverImage = isSameCategoryAsCurrent && coverImage && !coverImage.includes('491657278')
-    ? coverImage
-    : (savedPresetData?.cover_image || savedPresetData?.image || activePreset.coverImage || getCategoryCoverImage(selectedCategory));
+  const isWeddingCover = (url?: string) =>
+    Boolean(
+      url &&
+        (url.includes('491657278') ||
+          url.includes('white_arch_columns_wedding_cover') ||
+          url.includes('khmer_royal_gold_wedding_cover'))
+    );
+
+  const effectiveCoverImage =
+    isSameCategoryAsCurrent && coverImage && !(selectedCategory !== 'wedding' && isWeddingCover(coverImage))
+      ? coverImage
+      : savedPresetData?.cover_image ||
+        savedPresetData?.image ||
+        activePreset.coverImage ||
+        getCategoryCoverImage(selectedCategory);
 
   const displayHeaderKh = (() => {
     if (isSameCategoryAsCurrent && eventName) {

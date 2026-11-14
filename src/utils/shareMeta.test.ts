@@ -128,3 +128,24 @@ test('parseFirestoreDocumentFields decodes nested maps and arrays cleanly', () =
   assert.equal(decoded.singlePerson, false);
   assert.equal(decoded.config.invitation_kh.location, 'Phnom Penh');
 });
+
+test('non-wedding categories ignore leaked wedding cover URLs and inject empty og:image / twitter:image tags', () => {
+  const origin = 'https://invitationonline-six.vercel.app';
+  const meta = buildInvitationMeta({
+    event: {
+      id: 'housewarming-hm001',
+      eventType: 'housewarming',
+      groom: 'លោក សំ ភារម្យ',
+      image: '/assets/images/white_arch_columns_wedding_cover_1790394461049.jpg',
+    },
+    origin,
+  });
+
+  assert.equal(meta.category, 'housewarming');
+  assert.equal(meta.image, `${origin}/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg`);
+
+  const html = `<!doctype html><html><head><title>Digital</title><meta property="og:image" content="" /><meta name="twitter:image" content="" /></head><body></body></html>`;
+  const injected = injectMetaIntoHtml(html, meta);
+  assert.ok(injected.includes(`<meta property="og:image" content="${origin}/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg" />`));
+  assert.ok(injected.includes(`<meta name="twitter:image" content="${origin}/assets/images/khmer_housewarming_villa_emblem_1794537020715.jpg" />`));
+});

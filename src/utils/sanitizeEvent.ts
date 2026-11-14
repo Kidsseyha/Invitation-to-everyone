@@ -37,7 +37,12 @@ export function sanitizeWeddingEvent(rawEvent: any): WeddingEvent {
   }
 
   // Prevent wedding couple cover photo from leaking into non-wedding templates
-  if (resolvedType !== 'wedding' && sanitizedImage.includes('491657278_9322919307805207_5998846575526453583_n.jpg')) {
+  if (
+    resolvedType !== 'wedding' &&
+    (sanitizedImage.includes('491657278_9322919307805207_5998846575526453583_n.jpg') ||
+      sanitizedImage.includes('white_arch_columns_wedding_cover') ||
+      sanitizedImage.includes('khmer_royal_gold_wedding_cover'))
+  ) {
     sanitizedImage = defaultCategoryCover;
   }
 

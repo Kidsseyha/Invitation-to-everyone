@@ -162,9 +162,15 @@ export function buildInvitationMeta(params: {
     description += ` ទីតាំង៖ ${eventLocation}`;
   }
 
+  const isWeddingDefaultCover = (url: string) =>
+    url.includes('491657278') ||
+    url.includes('white_arch_columns_wedding_cover') ||
+    url.includes('khmer_royal_gold_wedding_cover');
+
   const candidateImages = [
     effectiveEvent?.cover_image,
     effectiveEvent?.image,
+    effectiveEvent?.config?.image,
     effectiveEvent?.config?.cover_background,
     effectiveEvent?.config?.photo_gallary?.photo1,
   ];
@@ -173,7 +179,7 @@ export function buildInvitationMeta(params: {
   for (const candidate of candidateImages) {
     if (!candidate || typeof candidate !== 'string') continue;
     if (candidate.startsWith('data:')) continue;
-    if (category !== 'wedding' && candidate.includes('491657278')) continue;
+    if (category !== 'wedding' && isWeddingDefaultCover(candidate)) continue;
     const abs = toAbsoluteHttpUrl(candidate, origin);
     if (abs) {
       selectedImage = abs;
